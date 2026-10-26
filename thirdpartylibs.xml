@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<libraries>
+  <library>
+    <location>thirdparty/pdfjs</location>
+    <name>PDF.js</name>
+    <description>Renders PDF documents (and office files converted to PDF) in the marking screen.</description>
+    <version>6.4.299</version>
+    <license>Apache</license>
+    <licenseversion>2.0</licenseversion>
+    <repository>https://github.com/mozilla/pdf.js</repository>
+    <copyrights>
+      <copyright>Mozilla Foundation</copyright>
+    </copyrights>
+  </library>
+  <library>
+    <location>thirdparty/pdflib</location>
+    <name>pdf-lib</name>
+    <description>Builds the annotated PDF download in the browser.</description>
+    <version>1.17.1</version>
+    <license>MIT</license>
+    <licenseversion></licenseversion>
+    <repository>https://github.com/Hopding/pdf-lib</repository>
+    <copyrights>
+      <copyright>Andrew Dillon</copyright>
+    </copyrights>
+  </library>
+  <library>
+    <location>thirdparty/wordnet</location>
+    <name>WordNet synonyms</name>
+    <description>Synonym sets derived from WordNet, used by the auto-marking assistant to match words with the same meaning.</description>
+    <version>3.1</version>
+    <license>WordNet 3.0 licence (BSD-style)</license>
+    <licenseversion></licenseversion>
+    <repository>https://wordnet.princeton.edu/</repository>
+    <copyrights>
+      <copyright>Princeton University</copyright>
+    </copyrights>
+  </library>
+</libraries>

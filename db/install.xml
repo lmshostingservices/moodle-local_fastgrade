@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/fastgrade/db" VERSION="20261026" COMMENT="XMLDB file for Moodle local/fastgrade"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_fastgrade_mark" COMMENT="One marking record per gradable item (assignment submission attempt or quiz question attempt).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="modname" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="assign or quiz"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student"/>
+        <FIELD NAME="attempt" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Assignment attempt number, or quiz attempt id"/>
+        <FIELD NAME="slot" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Quiz slot, 0 for assignments"/>
+        <FIELD NAME="itemid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="assign_submission.id or question_attempts.id"/>
+        <FIELD NAME="markerid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="fillingjson" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Quiz criteria panel filling"/>
+        <FIELD NAME="draftjson" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Autosaved, not yet committed grade and feedback"/>
+        <FIELD NAME="timesubmitted" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timefirstopened" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timegraded" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="activesecs" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Seconds the marker actively worked on this submission"/>
+        <FIELD NAME="autojson" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="What the auto-marker suggested, for the report"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="item_uix" UNIQUE="true" FIELDS="cmid, userid, attempt, slot"/>
+        <INDEX NAME="course_ix" UNIQUE="false" FIELDS="courseid"/>
+        <INDEX NAME="marker_ix" UNIQUE="false" FIELDS="markerid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_annot" COMMENT="Annotations made on a submission, including auto-marking suggestions.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="markid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student the annotation is about"/>
+        <FIELD NAME="docref" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Which document: onlinetext, file:contenthash, response, rfile:contenthash"/>
+        <FIELD NAME="clientid" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="Identifier created by the browser"/>
+        <FIELD NAME="page" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="type" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="polarity" TYPE="char" LENGTH="12" NOTNULL="true" DEFAULT="neutral" SEQUENCE="false" COMMENT="improvement, positive or neutral"/>
+        <FIELD NAME="anchorjson" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="stylejson" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="comment" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="12" NOTNULL="true" DEFAULT="typed" SEQUENCE="false" COMMENT="typed, voice, bank or auto"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="12" NOTNULL="true" DEFAULT="active" SEQUENCE="false" COMMENT="active, suggested or rejected"/>
+        <FIELD NAME="criterionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="authorid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="decidedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="decision" TYPE="char" LENGTH="12" NOTNULL="false" SEQUENCE="false" COMMENT="accepted, edited or rejected"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="markid" TYPE="foreign" FIELDS="markid" REFTABLE="local_fastgrade_mark" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="doc_ix" UNIQUE="false" FIELDS="markid, docref"/>
+        <INDEX NAME="client_uix" UNIQUE="true" FIELDS="markid, clientid"/>
+        <INDEX NAME="cmuser_ix" UNIQUE="false" FIELDS="cmid, userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_fbitem" COMMENT="Log of feedback written: voice or typed, improvement or positive. Used for reports.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="markid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="markerid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="target" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="annotation, overall or criterion"/>
+        <FIELD NAME="mode" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="voice or typed"/>
+        <FIELD NAME="polarity" TYPE="char" LENGTH="12" NOTNULL="true" DEFAULT="neutral" SEQUENCE="false"/>
+        <FIELD NAME="provider" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Speech engine used"/>
+        <FIELD NAME="durationsec" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="words" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="markid" TYPE="foreign" FIELDS="markid" REFTABLE="local_fastgrade_mark" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="course_ix" UNIQUE="false" FIELDS="courseid"/>
+        <INDEX NAME="marker_ix" UNIQUE="false" FIELDS="markerid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_bank" COMMENT="Comment bank (QuickMarks).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Owner"/>
+        <FIELD NAME="scope" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="personal" SEQUENCE="false" COMMENT="personal, course or site"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="polarity" TYPE="char" LENGTH="12" NOTNULL="true" DEFAULT="neutral" SEQUENCE="false"/>
+        <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="text" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="usagecount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="user_ix" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="scope_ix" UNIQUE="false" FIELDS="scope, courseid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_lookfor" COMMENT="Auto-marking look-for rules per criterion.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="criterionkey" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="rubric criterion id, guide criterion id, or q:slot"/>
+        <FIELD NAME="kind" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="configjson" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cm_ix" UNIQUE="false" FIELDS="cmid, criterionkey"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_qcrit" COMMENT="Criteria panel (mini rubric) definition for a quiz question slot.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="definitionjson" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cmq_uix" UNIQUE="true" FIELDS="cmid, questionid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_note" COMMENT="Private marker notes about a student in an activity.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student"/>
+        <FIELD NAME="authorid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="note" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cmuser_uix" UNIQUE="true" FIELDS="cmid, userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_view" COMMENT="Saved report views">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Who saved it"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="0 means any activity of this kind"/>
+        <FIELD NAME="kind" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="assign" SEQUENCE="false" COMMENT="assign or quiz"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="configjson" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Tab, filters, pivot, columns and sort"/>
+        <FIELD NAME="shared" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 = visible to other markers in the course"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="usercourse" UNIQUE="false" FIELDS="userid, courseid"/>
+        <INDEX NAME="courseshared" UNIQUE="false" FIELDS="courseid, shared"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
