@@ -51,6 +51,8 @@ class save_prefs extends external_api {
      * @return array
      */
     public static function execute($data): array {
+        require_login();
+        self::validate_context(\context_system::instance());
         $p = self::validate_parameters(
             self::execute_parameters(),
             [
@@ -67,6 +69,7 @@ class save_prefs extends external_api {
      * @return array
      */
     private static function run(array $p): array {
+        \local_fastgrade\local\entitlement::require_access();
         $data = self::decode($p['data']);
         return ['prefs' => \local_fastgrade\local\prefs::set($data)];
     }

@@ -116,6 +116,14 @@ class provider implements
         );
         $c->add_user_preference(\local_fastgrade\local\prefs::NAME, 'privacy:metadata:preference');
         $c->add_external_location_link(
+            'lms_labs',
+            [
+                'siteid' => 'privacy:metadata:lmslabs:siteid',
+                'apikey' => 'privacy:metadata:lmslabs:apikey',
+            ],
+            'privacy:metadata:lmslabs'
+        );
+        $c->add_external_location_link(
             'browser_speech_service',
             [
                 'audio' => 'privacy:metadata:speech:audio',

@@ -24,6 +24,16 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+$string['accessheading'] = 'LMS Labs access';
+$string['privacy:metadata:lmslabs'] = 'The site credentials are sent over HTTPS to LMS Labs to verify Fast Grade access. No student submissions or grades are sent.';
+$string['privacy:metadata:lmslabs:siteid'] = 'The Moodle site’s LMS Labs Site ID.';
+$string['privacy:metadata:lmslabs:apikey'] = 'The site’s LMS Labs API key used to authenticate access checks.';
+$string['accessdescription'] = 'Fast Grade requires a one-time unlock of 50 LMS Labs credits, or an existing site purchase. There are no ongoing AI usage charges. <a href="https://lms-labs.com/plugins" target="_blank" rel="noopener noreferrer">Open LMS Labs Plugins</a>, select Fast Grade and confirm the unlock there. Opening Fast Grade never charges credits.';
+$string['siteid'] = 'LMS Labs Site ID';
+$string['apikey'] = 'LMS Labs API key';
+$string['credentialsdescription'] = 'The shared AI Configuration credentials are used automatically when available. Otherwise enter this Moodle site’s LMS Labs credentials here.';
+$string['unlockrequired'] = 'Fast Grade access could not be verified. Ask your administrator to check the LMS Labs credentials and the site’s Fast Grade unlock in Fast Grade settings. An existing purchase is honoured. This check has not charged any credits. Standard Moodle grading remains available.';
+
 $string['accept'] = 'Accept';
 $string['accept_tip'] = 'Accept this suggestion';
 $string['addcriteria'] = 'Add a criteria panel';

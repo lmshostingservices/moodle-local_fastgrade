@@ -37,6 +37,7 @@ require_login($course, false, $cm);
 require_sesskey();
 $context = context_module::instance($cmid);
 require_capability('local/fastgrade:viewreport', $context);
+\local_fastgrade\local\entitlement::require_access();
 
 if (!in_array($format, ['excel', 'ods', 'csv', 'json'], true)) {
     throw new moodle_exception('invalidparameter', 'debug');

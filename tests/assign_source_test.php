@@ -248,10 +248,19 @@ final class assign_source_test extends \advanced_testcase {
     public function test_sources_and_ideas_are_saved(): void {
         $this->resetAfterTest();
         [$course, $cm] = $this->setup_assignment();
-        \local_fastgrade\local\lookfors::save($cm->id, 'sources', [['kind' => 'sources',
-            'config' => ['terms' => ['instructions', 'grading']]]]);
-        \local_fastgrade\local\lookfors::save($cm->id, 'c1', [['kind' => 'ideas',
-            'config' => ['terms' => ['hazard', 'controls|barriers'], 'min' => 0]], ['kind' => 'nonsense', 'config' => []]]);
+        \local_fastgrade\local\lookfors::save(
+            $cm->id,
+            'sources',
+            [['kind' => 'sources', 'config' => ['terms' => ['instructions', 'grading']]]]
+        );
+        \local_fastgrade\local\lookfors::save(
+            $cm->id,
+            'c1',
+            [
+                ['kind' => 'ideas', 'config' => ['terms' => ['hazard', 'controls|barriers'], 'min' => 0]],
+                ['kind' => 'nonsense', 'config' => []],
+            ]
+        );
         $all = \local_fastgrade\local\lookfors::for_cm($cm->id);
         $this->assertSame(['instructions', 'grading'], $all['sources'][0]['config']['terms']);
         $this->assertCount(1, $all['c1']);

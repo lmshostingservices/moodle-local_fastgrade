@@ -84,6 +84,12 @@ class hook_callbacks {
             if (optional_param('classic', 0, PARAM_BOOL) || !self::can_mark() || headers_sent()) {
                 return;
             }
+            // Never redirect away from core grading when paid access cannot be verified.
+            try {
+                \local_fastgrade\local\entitlement::require_access();
+            } catch (\moodle_exception $e) {
+                return;
+            }
             $params = ['id' => $PAGE->cm->id];
             $userid = optional_param('userid', 0, PARAM_INT);
             if ($userid) {

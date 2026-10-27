@@ -125,6 +125,7 @@ abstract class source {
         if (!self::is_enabled_for($this->cm->modname)) {
             throw new moodle_exception('disabledforactivity', 'local_fastgrade');
         }
+        entitlement::require_access();
     }
 
     /**

@@ -5,7 +5,11 @@ Fast Grade replaces two Moodle marking screens:
 - the assignment grader
 - the quiz manual-grading screen for essay questions
 
-It works on Moodle 4.4 to 5.3. It is a standalone plugin. It shares no code with other graders, and Fast Grade itself calls no outside services. Nothing in it uses AI.
+It works on Moodle 4.4 to 5.3. It is a standalone plugin. It shares no marking code with other graders. Nothing in its marking engine uses AI. It sends the site's LMS Labs Site ID and API key over HTTPS to verify its one-time paid access; no submissions, grades or student information are sent for this check.
+
+## LMS Labs access
+
+Fast Grade requires a one-time 50-credit unlock or an existing site purchase. There are no ongoing AI usage charges. In LMS Labs Plugins, select Fast Grade and explicitly confirm its unlock. Then use the same site's credentials in Moodle's shared AI Configuration, or enter them under Site administration > Plugins > Local plugins > Fast Grade. Checking access never charges credits. Successful checks are cached for five minutes in the current session, bound to this Moodle URL and credentials. If verification is unavailable, Fast Grade staff tools remain locked; core Moodle grading and previously released student feedback remain available.
 
 ## What markers get
 

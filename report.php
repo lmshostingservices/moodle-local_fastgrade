@@ -30,6 +30,7 @@ $cmid = required_param('id', PARAM_INT);
 require_login($course, false, $cm);
 $context = context_module::instance($cmid);
 require_capability('local/fastgrade:viewreport', $context);
+\local_fastgrade\local\entitlement::require_access();
 $source = \local_fastgrade\local\source::for_cmid($cmid);
 
 $PAGE->set_url(new moodle_url('/local/fastgrade/report.php', ['id' => $cmid]));

@@ -43,6 +43,9 @@ if (!$file || (int)$file->get_contextid() !== (int)$context->id || $file->is_dir
 }
 $allowed = has_capability('local/fastgrade:grade', $context) &&
     (has_capability('mod/assign:grade', $context) || has_capability('mod/quiz:grade', $context));
+if ($allowed) {
+    \local_fastgrade\local\entitlement::require_access();
+}
 if (!$allowed && has_capability('local/fastgrade:viewfeedback', $context)) {
     $allowed = \local_fastgrade\local\student_feedback::can_view_file($cm, $context, $file);
 }

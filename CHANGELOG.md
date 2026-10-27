@@ -2,6 +2,15 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
+## [v1.1.1] - 2026-10-27
+
+### Site access
+
+- Verify the existing LMS Labs site unlock before staff grading, reporting, exports and web services.
+- Use shared AI Configuration credentials, with optional per-plugin credentials in settings.
+- Checking access never charges credits. Acquire the one-time 50-credit unlock through the explicit LMS Labs confirmation.
+- Preserve student access to previously delivered feedback and standard Moodle grading.
+
 ## [v1.1.0] - 2026-10-27
 
 ### Auto-marking

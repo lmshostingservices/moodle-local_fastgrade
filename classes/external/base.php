@@ -49,6 +49,7 @@ trait base {
         if (!source::is_enabled_for($source->get_cm()->modname)) {
             throw new \moodle_exception('disabledforactivity', 'local_fastgrade');
         }
+        \local_fastgrade\local\entitlement::require_access();
         return $source;
     }
 

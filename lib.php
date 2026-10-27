@@ -93,6 +93,9 @@ function local_fastgrade_pluginfile($course, $cm, $context, $filearea, $args, $f
             return false;
         }
         $allowed = has_capability('local/fastgrade:grade', $context);
+        if ($allowed) {
+            \local_fastgrade\local\entitlement::require_access();
+        }
         if (!$allowed && has_capability('local/fastgrade:viewfeedback', $context)) {
             $allowed = \local_fastgrade\local\student_feedback::can_view_file($cm, $context, $source);
         }

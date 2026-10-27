@@ -31,6 +31,25 @@ if ($hassiteconfig) {
     if ($ADMIN->fulltree) {
         $c = 'local_fastgrade';
 
+        $settings->add(new admin_setting_heading(
+            "$c/access",
+            get_string('accessheading', $c),
+            get_string('accessdescription', $c)
+        ));
+        $settings->add(new admin_setting_configtext(
+            "$c/siteid",
+            get_string('siteid', $c),
+            get_string('credentialsdescription', $c),
+            '',
+            PARAM_TEXT
+        ));
+        $settings->add(new admin_setting_configpasswordunmask(
+            "$c/apikey",
+            get_string('apikey', $c),
+            get_string('credentialsdescription', $c),
+            ''
+        ));
+
         $settings->add(new admin_setting_heading("$c/general", get_string('settings_general', $c), ''));
         $settings->add(
             new admin_setting_configcheckbox(

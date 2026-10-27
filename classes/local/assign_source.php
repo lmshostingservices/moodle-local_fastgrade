@@ -142,8 +142,10 @@ class assign_source extends source {
             'introfiles' => $this->intro_files(),
             'otherform' => $this->other_grading_form(),
             'wordlimit' => $this->submission_enabled('onlinetext') ?
-                (int)($this->assign->get_submission_plugin_by_type('onlinetext')->get_config('wordlimitenabled') ?
-                $this->assign->get_submission_plugin_by_type('onlinetext')->get_config('wordlimit') : 0) : 0,
+                (int)(
+                    $this->assign->get_submission_plugin_by_type('onlinetext')->get_config('wordlimitenabled') ?
+                    $this->assign->get_submission_plugin_by_type('onlinetext')->get_config('wordlimit') : 0
+                ) : 0,
             'gradetype' => $gradetype,
             'maxgrade' => $gradetype === 'point' ? (float)$instance->grade : 0,
             'scaleitems' => $scaleitems,
