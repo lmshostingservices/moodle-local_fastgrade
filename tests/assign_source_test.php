@@ -205,4 +205,69 @@ final class assign_source_test extends \advanced_testcase {
         $this->expectException(\required_capability_exception::class);
         \local_fastgrade\external\save_grade::execute($cm->id, $students[1]->id, 0, 0, json_encode(['grade' => 100]));
     }
+
+    /**
+     * The activity information carries every source the ready-made checks read from.
+     */
+    public function test_info_has_check_sources(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, $cm, $teacher] = $this->setup_assignment();
+        $DB->set_field(
+            'assign',
+            'activity',
+            '<ul><li>Identify the hazards.</li><li>Explain the controls.</li></ul>',
+            ['id' => $cm->instance]
+        );
+        $DB->set_field('assign', 'activityformat', FORMAT_HTML, ['id' => $cm->instance]);
+        $context = \context_module::instance($cm->id);
+        get_file_storage()->create_file_from_string(
+            [
+                'contextid' => $context->id,
+                'component' => 'mod_assign',
+                'filearea' => 'introattachment',
+                'itemid' => 0,
+                'filepath' => '/',
+                'filename' => 'brief.txt',
+            ],
+            'Answer every question in 300 to 500 words.'
+        );
+        $this->setUser($teacher);
+        $info = source::for_cmid($cm->id)->get_info();
+        $this->assertStringContainsString('Identify the hazards', $info['instructions']);
+        $this->assertCount(1, $info['introfiles']);
+        $this->assertSame('brief.txt', $info['introfiles'][0]['filename']);
+        $this->assertSame([], $info['otherform']);
+        $this->assertSame('rubric', $info['method']);
+        $this->assertSame(0, $info['wordlimit']);
+    }
+
+    /**
+     * The per-activity source choice and key ideas checks are saved and read back.
+     */
+    public function test_sources_and_ideas_are_saved(): void {
+        $this->resetAfterTest();
+        [$course, $cm] = $this->setup_assignment();
+        \local_fastgrade\local\lookfors::save($cm->id, 'sources', [['kind' => 'sources',
+            'config' => ['terms' => ['instructions', 'grading']]]]);
+        \local_fastgrade\local\lookfors::save($cm->id, 'c1', [['kind' => 'ideas',
+            'config' => ['terms' => ['hazard', 'controls|barriers'], 'min' => 0]], ['kind' => 'nonsense', 'config' => []]]);
+        $all = \local_fastgrade\local\lookfors::for_cm($cm->id);
+        $this->assertSame(['instructions', 'grading'], $all['sources'][0]['config']['terms']);
+        $this->assertCount(1, $all['c1']);
+        $this->assertSame('ideas', $all['c1'][0]['kind']);
+        $this->assertSame(['hazard', 'controls|barriers'], $all['c1'][0]['config']['terms']);
+    }
+
+    /**
+     * Check sources default to every source and follow the site setting.
+     */
+    public function test_check_sources_setting(): void {
+        $this->resetAfterTest();
+        $this->assertContains('graderinfo', \local_fastgrade\local\boot::check_sources());
+        set_config('checksources', 'instructions,graderinfo', 'local_fastgrade');
+        $this->assertSame(['instructions', 'graderinfo'], \local_fastgrade\local\boot::check_sources());
+        set_config('checksources', '', 'local_fastgrade');
+        $this->assertSame([], \local_fastgrade\local\boot::check_sources());
+    }
 }

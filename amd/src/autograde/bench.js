@@ -95,10 +95,11 @@ const humanMet = (item, crit, rules, info) => {
  * @param {Object} app
  * @param {Array} criteria
  * @param {Array} items marked answers
+ * @param {Object} [rulesets] the rules auto-marking runs (saved ones plus those made from the rubric)
  */
-export const open = (app, criteria, items) => {
+export const open = (app, criteria, items, rulesets = null) => {
     const info = app.store.get('info');
-    const lookfors = app.store.get('lookfors') || {};
+    const lookfors = rulesets || app.store.get('lookfors') || {};
     const marked = items.filter(i => i.graded && i.text && i.text.trim());
     if (marked.length < 3) {
         Dialog.open({title: t('auto_testbench'), body: h('p', null, t('bench_toofew', marked.length)),
@@ -147,7 +148,8 @@ export const open = (app, criteria, items) => {
                     if (!picked.length) {
                         return;
                     }
-                    const newrules = [...rules, {kind: 'anyof', config: {label: t('bench_newrule'), terms: picked,
+                    const kept = rules.map(r => ({kind: r.kind, config: r.config}));
+                    const newrules = [...kept, {kind: 'anyof', config: {label: t('bench_newrule'), terms: picked,
                         min: Math.min(2, picked.length)}}];
                     try {
                         const r = await Api.call('save_criteria', {cmid: app.cmid, kind: 'lookfors',

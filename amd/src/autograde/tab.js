@@ -30,11 +30,25 @@ import * as Api from 'local_fastgrade/lib/api';
 import * as Engine from 'local_fastgrade/autograde/engine';
 import * as Editor from 'local_fastgrade/autograde/editor';
 import * as Bench from 'local_fastgrade/autograde/bench';
+import * as Dialog from 'local_fastgrade/ui/dialog';
+import * as Loader from 'local_fastgrade/lib/loader';
+
+const SOURCES = ['instructions', 'attachments', 'grading', 'otherforms', 'graderinfo', 'question', 'template', 'wordlimit'];
 
 // "Identifies the Act" (rubric wording) becomes "Identify the Act" (advice to the student).
 const VERBS = new RegExp('^(identifies|describes|explains|applies|discusses|outlines|demonstrates|uses|provides|lists|' +
     'compares|evaluates|analyses|analyzes|justifies|includes|selects|develops|recommends|states|defines|summarises|' +
     'summarizes)\\b', 'i');
+
+
+/**
+ * Plain text with one line per block (paragraph, list item, heading), so list steps stay apart.
+ *
+ * @param {string} html
+ * @returns {string}
+ */
+const linesOf = html => textOf(String(html || '').replace(/<\/(p|li|h[1-6]|div|tr)>|<br\s*\/?>/gi, '$&\n')
+    .replace(/<li[^>]*>/gi, '$&- ')).replace(/\n\s*\n+/g, '\n').trim();
 
 /**
  * Rubric wording as advice: "Identifies the Act" becomes "Identify the Act".
@@ -67,6 +81,38 @@ const lower = p => p.charAt(0).toLowerCase() + p.slice(1);
  * @returns {string}
  */
 const praise = p => (VERBS.test(p) ? 'You ' + lower(advise(p)) : p).replace(/[.\s]+$/, '');
+
+/**
+ * What a check that was not met asks the student to do, in plain words.
+ *
+ * @param {Object} n note from the engine
+ * @returns {string}
+ */
+const needText = n => {
+    if (n.kind === 'length') {
+        return t('auto_m_length', {want: n.label || (n.max ? n.min + '–' + n.max : n.min) + ' words', n: n.detail});
+    }
+    if (n.kind === 'ideas') {
+        return n.missing && n.missing.length ? t('auto_m_ideas', n.missing.join(', ')) : '';
+    }
+    if (n.kind === 'structure') {
+        if (n.label === t('auto_notesmeasure')) {
+            return t('auto_m_notes', n.detail);
+        }
+        if (n.label === t('auto_formulameasure')) {
+            return t('auto_m_formulas', n.detail);
+        }
+        if (n.label === t('auto_calcmeasure')) {
+            return t('auto_m_calc');
+        }
+        return /reference/.test(n.label || '') ? t('auto_m_reflist') : t('auto_m_headings');
+    }
+    if (n.kind === 'pattern') {
+        return /citation/.test(n.label || '') ? t('auto_m_cite') : (/legislation/.test(n.label || '') ? t('auto_m_law') :
+            n.label || n.detail);
+    }
+    return n.label || n.detail;
+};
 
 export default class AutoTab {
     /**
@@ -107,27 +153,114 @@ export default class AutoTab {
      */
     criteria(item) {
         const info = this.app.store.get('info');
+        const src = this.sources();
+        const on = k => src.includes(k);
         if (item.question) {
             const q = item.question;
+            const qtext = textOf(q.text);
             const base = {key: 'q' + q.questionid, label: t('questionn', q.number) + ' · ' + q.name,
-                text: textOf(q.text), benchmark: textOf(q.graderinfo), question: textOf(q.text)};
-            return [base];
+                text: qtext, benchmark: on('graderinfo') ? linesOf(q.graderinfo) : '', question: qtext};
+            // Without grader information the question itself says what to look for.
+            const whole = {key: 'qall' + q.questionid, label: t('src_wholeanswer'), whole: true, question: qtext,
+                text: [on('question') && !base.benchmark.trim() ? linesOf(q.text) : '',
+                    on('template') ? linesOf(q.template) : ''].filter(Boolean).join('\n'), benchmark: '',
+                minwords: on('wordlimit') ? q.minwords : 0, maxwords: on('wordlimit') ? q.maxwords : 0};
+            return [base, whole];
         }
         const def = info.definition || {};
-        const intro = textOf(info.intro || '');
-        if (info.method === 'rubric') {
-            return def.criteria.map((c, i) => ({key: 'c' + c.id, id: c.id,
+        const intro = [on('instructions') ? linesOf(info.intro || '') : '',
+            on('instructions') ? linesOf(info.instructions || '') : '',
+            on('attachments') ? (this.briefText || '') : ''].filter(x => x.trim()).join('\n');
+        const steps = Engine.instructionSteps(intro);
+        // The instruction step a criterion is about sharpens its key points (shared content words, no AI).
+        const withStep = (c, text) => {
+            const step = Engine.matchStep(text, steps);
+            return step ? Object.assign(c, {step, benchmark: c.benchmark + '\n' + step}) : c;
+        };
+        const whole = {key: 'all', label: t('wholesubmission'), text: intro, benchmark: '', question: intro, whole: true,
+            maxwords: on('wordlimit') ? info.wordlimit || 0 : 0};
+        const out = [];
+        if (on('grading') && info.method === 'rubric') {
+            def.criteria.forEach((c, i) => out.push(withStep({key: 'c' + c.id, id: c.id,
                 label: (i + 1) + '. ' + textOf(c.description).slice(0, 80),
                 text: textOf(c.description), benchmark: textOf(c.description) + '\n' +
                     ([...c.levels].sort((x, y) => x.score - y.score).map(l => textOf(l.definition)).slice(-1)[0] || ''),
-                levels: c.levels, question: intro}));
-        }
-        if (info.method === 'guide') {
-            return def.criteria.map((c, i) => ({key: 'c' + c.id, id: c.id, label: (i + 1) + '. ' + textOf(c.shortname),
+                levels: c.levels, question: intro,
+                top: textOf(([...c.levels].sort((x, y) => x.score - y.score).slice(-1)[0] || {}).definition || '')},
+            textOf(c.description))));
+        } else if (on('grading') && info.method === 'guide') {
+            def.criteria.forEach((c, i) => out.push(withStep({key: 'c' + c.id, id: c.id,
+                label: (i + 1) + '. ' + textOf(c.shortname),
                 text: textOf(c.description), benchmark: textOf(c.descriptionmarkers) || textOf(c.description),
-                maxscore: c.maxscore, question: intro}));
+                maxscore: c.maxscore, question: intro, top: textOf(c.descriptionmarkers)},
+            textOf(c.shortname) + ' ' + textOf(c.description))));
         }
-        return [{key: 'all', label: t('wholesubmission'), text: intro, benchmark: '', question: intro}];
+        const other = info.otherform || {};
+        if (on('otherforms') && other.text) {
+            // Another grading form (for example Assignment Benchmarks): its wording becomes key points.
+            out.push({key: 'form', label: other.name, text: '', question: intro,
+                benchmark: other.text.split('\n').map(l => l.trim()).filter(l => l.split(/\s+/).length >= 4).join('\n')});
+        }
+        return out.concat([whole]);
+    }
+
+    /**
+     * Where checks may come from: this activity's choice, else the site default.
+     *
+     * @returns {string[]}
+     */
+    sources() {
+        const saved = (this.app.store.get('lookfors') || {}).sources;
+        if (saved && saved[0] && saved[0].config && Array.isArray(saved[0].config.terms)) {
+            return saved[0].config.terms;
+        }
+        return this.app.boot.checksources || SOURCES;
+    }
+
+    /**
+     * Read the text of PDF and text files attached to the assignment (an assessment brief), once.
+     *
+     * @returns {Promise<string>}
+     */
+    async loadBrief() {
+        const info = this.app.store.get('info');
+        if (this.briefText !== undefined || !info || !(info.introfiles || []).length || !this.sources().includes('attachments')) {
+            return this.briefText || '';
+        }
+        const parts = [];
+        for (const f of info.introfiles) {
+            try {
+                if (f.mimetype === 'application/pdf') {
+                    const pdfjs = await Loader.pdfjs(this.app.boot.libs);
+                    const doc = await pdfjs.getDocument({url: f.url, withCredentials: true}).promise;
+                    for (let i = 1; i <= Math.min(doc.numPages, 20); i++) {
+                        const page = await doc.getPage(i);
+                        const tc = await page.getTextContent();
+                        let line = '';
+                        let lastY = null;
+                        tc.items.forEach(it => {
+                            const y = it.transform ? Math.round(it.transform[5]) : lastY;
+                            if (lastY !== null && y !== lastY && line.trim()) {
+                                parts.push(line.trim());
+                                line = '';
+                            }
+                            line += it.str + (it.hasEOL ? '\n' : '');
+                            lastY = y;
+                        });
+                        if (line.trim()) {
+                            parts.push(line.trim());
+                        }
+                    }
+                } else if (/^text\//.test(f.mimetype)) {
+                    const r = await fetch(f.url, {credentials: 'same-origin'});
+                    parts.push(f.mimetype === 'text/html' ? linesOf(await r.text()) : await r.text());
+                }
+            } catch (e) {
+                // A brief that cannot be read is skipped; the other sources still work.
+            }
+        }
+        this.briefText = parts.join('\n').slice(0, 40000);
+        return this.briefText;
     }
 
     /**
@@ -142,15 +275,35 @@ export default class AutoTab {
         const saved = this.app.store.get('lookfors') || {};
         const out = Object.assign({}, saved);
         this.criteria(item).forEach(c => {
-            if ((out[c.key] || []).length || !c.benchmark.trim()) {
+            if ((out[c.key] || []).length) {
                 return;
             }
+            if (c.whole) {
+                // Whole submission or answer: what the instructions or question ask for, the word limits, and
+                // (for assignments) legislation and reference checks.
+                const rules = Engine.fromInstructions(c.text).map(r => Object.assign(r, {auto: true}));
+                if ((c.minwords || c.maxwords) && !rules.some(r => r.kind === 'length')) {
+                    rules.push({kind: 'length', auto: true, config: {min: c.minwords || 0, max: c.maxwords || 0,
+                        label: c.minwords && c.maxwords ? `${c.minwords}–${c.maxwords} words` :
+                            (c.minwords ? `at least ${c.minwords} words` : `at most ${c.maxwords} words`)}});
+                }
+                if (!item.question) {
+                    rules.push({kind: 'compliance', config: {}, auto: true});
+                }
+                out[c.key] = rules;
+                return;
+            }
+            if (!c.benchmark.trim()) {
+                return;
+            }
+            const levels = c.levels ? [...c.levels].sort((x, y) => x.score - y.score) : [];
+            // Key ideas come from rubric or guide wording; an essay's grader information is already its key points.
+            const ideas = item.question ? [] : Engine.keyIdeas(c.text + ' ' + (c.top || ''));
             out[c.key] = [{kind: 'keypoints', config: {terms: Engine.splitPoints(c.benchmark)}, auto: true},
-                {kind: 'threshold', config: {}, auto: true}];
+                ...(ideas.length >= 2 ? [{kind: 'ideas', config: {terms: ideas, min: 0, label: ''}, auto: true}] : []),
+                {kind: 'threshold', config: levels.length ? {levelid: levels[levels.length - 1].id,
+                    partiallevelid: levels[Math.floor((levels.length - 1) / 2)].id} : {}, auto: true}];
         });
-        if (!item.question && !(out.all || []).length) {
-            out.all = [{kind: 'compliance', config: {}, auto: true}];
-        }
         return out;
     }
 
@@ -161,7 +314,8 @@ export default class AutoTab {
      * @returns {boolean}
      */
     hasRules(item) {
-        return Object.values(this.lookfors(item)).some(r => r.length);
+        const lf = this.lookfors(item);
+        return Object.keys(lf).some(k => k !== 'sources' && lf[k].length);
     }
 
     /**
@@ -182,9 +336,16 @@ export default class AutoTab {
             h('div.fg-row-actions', null,
                 tip(h('button.fg-btn.is-primary.is-small', {type: 'button', disabled: !configured.length && !this.hasCompliance(),
                     onclick: () => this.run()}, icon('wand', 'fg-i-sm'), t('auto_run')), t('auto_run_tip')),
-                can ? tip(h('button.fg-btn.is-small', {type: 'button', onclick: () => Editor.open(this.app, crit, () => {
-                    this.app.panel.renderBody();
-                })}, icon('list', 'fg-i-sm'), t('auto_setup')), t('auto_setup_tip')) : null,
+                !this.app.readonly && configured.length ? tip(h('button.fg-btn.is-small',
+                    {type: 'button', onclick: () => this.markAll()},
+                    icon('users', 'fg-i-sm'), t('auto_all')), t('auto_all_tip')) : null,
+                can ? tip(h('button.fg-btn.is-small', {type: 'button', onclick: async() => {
+                    await this.loadBrief();
+                    const fresh = this.criteria(item);
+                    Editor.open(this.app, fresh, () => {
+                        this.app.panel.renderBody();
+                    }, this.lookfors(item), {sources: this.sources(), quiz: !!item.question, info: this.app.store.get('info')});
+                }}, icon('list', 'fg-i-sm'), t('auto_setup')), t('auto_setup_tip')) : null,
                 can && configured.length ? tip(h('button.fg-btn.is-small.is-ghost', {type: 'button',
                     onclick: () => this.testBench()},
                     icon('check', 'fg-i-sm'), t('auto_testbench')), t('auto_testbench_tip')) : null,
@@ -233,7 +394,17 @@ export default class AutoTab {
             return [];
         }
         if (v.pagesText) {
-            return v.pagesText();
+            const pages = await v.pagesText();
+            // Speaker notes count as evidence too (they cannot be highlighted on the slide, so page is a negative number).
+            if (v.notesReady) {
+                await v.notesReady;
+            }
+            (v.slideNotes || []).forEach((n, i) => {
+                if (n.trim()) {
+                    pages.push({page: -(i + 1), text: n, notes: true});
+                }
+            });
+            return pages;
         }
         if (v.plainText) {
             return [{page: 0, text: v.plainText()}];
@@ -251,6 +422,9 @@ export default class AutoTab {
      */
     anchor(page, start, end) {
         const v = this.app.viewer.viewer;
+        if (page < 0) {
+            return null;
+        }
         if (v.anchorForPage && page) {
             return v.anchorForPage(page, start, end);
         }
@@ -258,6 +432,108 @@ export default class AutoTab {
             return v.anchorFor(start, end);
         }
         return null;
+    }
+
+    /**
+     * Auto-mark every submission still waiting: open each one in turn, run the checks on every document and
+     * keep the result as a draft. Nothing is released and nothing a person has started is touched.
+     */
+    async markAll() {
+        const app = this.app;
+        if (this.batch) {
+            return;
+        }
+        const st = app.store;
+        const queue = st.get('participants').filter(p => p.submitted !== false && p.needsgrading && !p.hasdraft);
+        if (!queue.length) {
+            toast(t('auto_all_none'), {type: 'info'});
+            return;
+        }
+        const ok = await Dialog.confirm(t('auto_all'), t('auto_all_confirm', queue.length), t('auto_all_go'));
+        if (!ok) {
+            return;
+        }
+        const startEntry = st.get('current');
+        const bar = h('span.fg-batch-fill');
+        const label = h('span.fg-batch-label');
+        const count = h('span.fg-batch-count');
+        const stop = h('button.fg-btn.is-small', {type: 'button', onclick: () => {
+            job.stopped = true;
+            stop.disabled = true;
+            label.textContent = t('auto_all_stopping');
+        }}, t('auto_all_stop'));
+        const card = h('div.fg-batch', {role: 'status', 'aria-live': 'polite'}, icon('wand', 'fg-i-sm'),
+            h('div.fg-batch-main', null, h('div.fg-batch-row', null, label, count), h('span.fg-batch-track', null, bar)), stop);
+        (app.root || document.body).appendChild(card);
+        const job = {stopped: false, done: 0, marked: 0, suggestions: 0, skipped: 0, failed: []};
+        this.batch = job;
+        app.batch = true;
+        const started = Date.now();
+        try {
+            for (const entry of queue) {
+                if (job.stopped) {
+                    break;
+                }
+                label.textContent = t('auto_all_now', entry.person.fullname);
+                count.textContent = `${job.done + 1} / ${queue.length}`;
+                bar.style.width = Math.round(job.done / queue.length * 100) + '%';
+                await app.open(entry);
+                const item = st.get('item');
+                if (!item || st.get('current') !== entry || !(item.docs || []).length) {
+                    job.skipped++;
+                    job.done++;
+                    continue;
+                }
+                let made = 0;
+                let read = 0;
+                for (const doc of item.docs) {
+                    if (job.stopped) {
+                        break;
+                    }
+                    const already = app.annotations.forDoc(doc.docref).some(a => a.source === 'auto');
+                    if (already) {
+                        read++;
+                        continue;
+                    }
+                    let ready = false;
+                    try {
+                        ready = await app.viewer.openAndWait(doc);
+                    } catch (e) {
+                        ready = false;
+                    }
+                    if (!ready || !this.hasRules(item)) {
+                        continue;
+                    }
+                    read++;
+                    await this.run(true);
+                    made += (this.results && this.results.made) || 0;
+                }
+                if (read) {
+                    job.marked++;
+                    job.suggestions += made;
+                    await app.annotations.flush();
+                    if (st.get('dirty')) {
+                        app.draftQueue.cancel();
+                        await app.saveDraft();
+                    }
+                } else {
+                    job.failed.push(entry.person.fullname);
+                }
+                job.done++;
+            }
+        } finally {
+            this.batch = null;
+            app.batch = false;
+            card.remove();
+        }
+        await app.loadParticipants();
+        const secs = Math.max(1, Math.round((Date.now() - started) / 1000));
+        toast(t('auto_all_done', {n: job.marked, s: job.suggestions, secs}) +
+            (job.failed.length ? ' ' + t('auto_all_failed', job.failed.slice(0, 3).join(', ')) : ''), {type: 'ok', timeout: 9000});
+        const first = st.get('participants').find(p => queue.some(q => q.key === p.key)) || startEntry;
+        if (first) {
+            await app.open(first, {force: true});
+        }
     }
 
     /**
@@ -281,6 +557,7 @@ export default class AutoTab {
         const model = app.annotations;
         // Clear earlier suggestions on this document.
         model.forDoc(v.docref).filter(a => a.source === 'auto' && a.status === 'suggested').forEach(a => model.remove(a.clientid));
+        await this.loadBrief();
         const pages = await this.texts();
         const lookfors = this.lookfors(this.item);
         const crit = this.criteria(this.item);
@@ -299,7 +576,7 @@ export default class AutoTab {
             if (!an) {
                 return;
             }
-            model.create({docref: v.docref, page: an.page, anchor: an.anchor, type: 'border', polarity, comment,
+            model.create({docref: v.docref, page: an.page, anchor: an.anchor, type: v.markType || 'border', polarity, comment,
                 source: 'auto', status: 'suggested', criterionid: criterionid || 0});
             made++;
         };
@@ -308,8 +585,11 @@ export default class AutoTab {
             if (!rules.length) {
                 return;
             }
-            const res = {crit: c, notes: [], points: [], parts: [], met: 0, total: 0};
-            const checkrules = rules.filter(r => ['term', 'anyof', 'pattern', 'mustnot', 'length', 'structure'].includes(r.kind));
+            // Slides and spreadsheets say things in a few words, so ideas found anywhere count for more there.
+            const res = {crit: c, notes: [], points: [], parts: [], met: 0, total: 0,
+                terse: !!(app.viewer.doc && ['slides', 'sheet'].includes(app.viewer.doc.kind))};
+            const checkrules = rules.filter(r => ['term', 'anyof', 'pattern', 'mustnot', 'length', 'structure', 'ideas']
+                .includes(r.kind));
             const seen = new Set();
             pages.forEach(pg => {
                 const ev = Engine.evaluate(pg.text, checkrules);
@@ -338,6 +618,10 @@ export default class AutoTab {
             });
             if (pages.length > 1) {
                 const all = pages.map(p => p.text).join('\n');
+                checkrules.filter(r => r.kind === 'ideas').forEach(r => {
+                    const ev = Engine.evaluate(all, [r]);
+                    merged.set('ideas|' + (r.config.label || ''), ev.notes[0]);
+                });
                 const lenrule = checkrules.find(r => r.kind === 'length');
                 if (lenrule) {
                     const ev = Engine.evaluate(all, [lenrule]);
@@ -345,6 +629,44 @@ export default class AutoTab {
                 }
             }
             res.notes = [...merged.values()];
+            // Slides: a criterion about speaker notes is measured by how many slides have them.
+            const v2 = app.viewer.viewer;
+            if (!c.whole && v2 && v2.slideNotes && v2.slideNotes.length && /\bnotes\b/i.test(c.text + ' ' + c.benchmark)) {
+                const words = v2.slideNotes.map(n => n.trim() ? n.trim().split(/\s+/).length : 0);
+                const withnotes = words.filter(w => w >= 4).length;
+                // How many slides have notes, and whether they are enough to deliver from (about 12 words or more).
+                const cover = withnotes / v2.slideNotes.length;
+                const depth = withnotes ? Math.min(1, words.filter(w => w >= 4).reduce((a, b) => a + b, 0) / withnotes / 12) : 0;
+                const ratio = cover * (0.6 + 0.4 * depth);
+                res.notes.push({kind: 'structure', ok: ratio >= 0.85, label: t('auto_notesmeasure'),
+                    detail: `${withnotes}/${v2.slideNotes.length}`, ratio, measure: true});
+            }
+            // Spreadsheets: criteria about formulas or calculations are measured directly on the cells.
+            if (!c.whole && v2 && v2.sheetFacts) {
+                const facts = v2.sheetFacts();
+                const words = c.text + ' ' + c.benchmark + ' ' + (c.top || '');
+                if (/\bformula/i.test(c.text + ' ' + (c.label || '')) && facts.totals) {
+                    const ratio = facts.formulas / facts.totals;
+                    res.notes.push({kind: 'structure', ok: ratio >= 0.9, label: t('auto_formulameasure'),
+                        detail: `${facts.formulas}/${facts.totals}`, ratio, measure: true});
+                } else if (/\b(calculat|total|correct|accura|add up|arithmetic)/i.test(words) && facts.checked) {
+                    const ratio = (facts.checked - facts.wrong) / facts.checked;
+                    res.notes.push({kind: 'structure', ok: !facts.wrong, label: t('auto_calcmeasure'),
+                        detail: `${facts.checked - facts.wrong}/${facts.checked}`, ratio: facts.wrong ? Math.min(ratio, 0.3) : 1,
+                        measure: true});
+                    facts.wrongcells.forEach(w => {
+                        const sh = v2.data.sheets[w.page - 1];
+                        const ann = {page: w.page,
+                            anchor: {cell: w.ref, sheet: sh ? sh.name : '', exact: String(w.v), formula: ''}};
+                        {
+                            model.create({docref: v2.docref, page: ann.page, anchor: ann.anchor, type: 'cell',
+                                polarity: 'improvement',
+                                comment: t('auto_calcwrong', w.ref), source: 'auto', status: 'suggested', criterionid: c.id || 0});
+                            made++;
+                        }
+                    });
+                }
+            }
             res.total = res.notes.length;
             res.met = res.notes.filter(n => n.ok).length;
             // Key points.
@@ -375,8 +697,20 @@ export default class AutoTab {
             });
             // Parts.
             rules.filter(r => r.kind === 'parts').forEach(r => {
-                const all = pages.map(p => p.text).join('\n');
-                res.parts = Engine.partsCheck(all, r.config.terms || []);
+                // Each part: the first page with a sentence that answers it, marked as evidence.
+                const perpage = pages.map(pg => Engine.partsCheck(pg.text, r.config.terms || []));
+                res.parts = (r.config.terms || []).map((x, i) => {
+                    const pi = perpage.findIndex(list => list[i] && list[i].ok);
+                    return pi >= 0 ? Object.assign({page: pages[pi].page}, perpage[pi][i]) : (perpage[0] || [])[i] ||
+                        {label: x, ok: false, start: -1, end: -1};
+                });
+                res.parts.filter(p => p.ok).forEach(p => {
+                    const k = p.page + ':' + p.start;
+                    if (!seen.has(k)) {
+                        seen.add(k);
+                        suggest(p.page, p.start, p.end, 'positive', t('auto_partok', p.label.replace(/…$/, '')), c.id);
+                    }
+                });
                 res.total += res.parts.length;
                 res.met += res.parts.filter(p => p.ok).length;
             });
@@ -411,7 +745,7 @@ export default class AutoTab {
         const filled = this.prefill(results, compliance);
         if (!quiet) {
             toast(t('auto_done', made), {type: 'ok'});
-        } else if (made || filled) {
+        } else if ((made || filled) && !app.batch) {
             toast(t('auto_ready', made + filled), {type: 'info'});
         }
     }
@@ -423,11 +757,35 @@ export default class AutoTab {
      * @returns {number}
      */
     share(r) {
-        if (!r.total) {
-            return 0;
+        // A direct measure (speaker notes on slides) decides its criterion on its own.
+        const measure = r.notes.find(n => n.measure);
+        if (measure) {
+            return Math.min(1, measure.ratio || 0);
         }
-        const partial = r.points.filter(p => p.status === 'partial').length;
-        return Math.min(1, (r.met + partial * 0.5) / r.total);
+        let got = 0;
+        let total = 0;
+        let ideas = null;
+        r.notes.forEach(n => {
+            if (n.kind === 'ideas') {
+                ideas = n.ok ? 1 : (n.ratio || 0);
+                return;
+            }
+            total++;
+            got += n.ok ? 1 : (n.ratio || 0) * 0.9;
+        });
+        r.points.forEach(p => {
+            total++;
+            got += p.status === 'covered' ? 1 : (p.status === 'partial' ? 0.5 : 0);
+        });
+        r.parts.forEach(p => {
+            total++;
+            got += p.ok ? 1 : 0;
+        });
+        const rest = total ? got / total : 0;
+        // Key ideas found anywhere and the stricter sentence-level checks share the weight.
+        const w = r.terse ? 0.55 : 0.25;
+        const share = ideas === null ? rest : (total ? w * ideas + (1 - w) * rest : ideas);
+        return Math.min(1, share);
     }
 
     /**
@@ -465,13 +823,21 @@ export default class AutoTab {
         let count = 0;
         results.forEach(r => {
             const share = this.share(r);
-            total += share;
-            count++;
+            // Word limits and layout matter less than whether the content is there.
+            const weight = r.crit.whole && results.length > 1 ? 0.25 : 1;
+            total += share * weight;
+            count += weight;
             const good = r.points.filter(p => p.status === 'covered').map(p => p.point)
                 .concat(r.parts.filter(p => p.ok).map(p => p.label));
             const miss = r.points.filter(p => p.status !== 'covered').map(p => p.point)
-                .concat(r.parts.filter(p => !p.ok).map(p => p.label))
-                .concat(r.notes.filter(n => !n.ok).map(n => n.detail || n.label).filter(Boolean));
+                .concat(r.parts.filter(p => !p.ok).map(p => (/^(what|how|why|who|when|where|which)\b/i.test(p.label) ?
+                    t('auto_m_answer', lower(p.label.replace(/[…?]+$/, ''))) : p.label)))
+                .concat(r.notes.filter(n => !n.ok).map(needText).filter(Boolean));
+            const key = x => String(x).toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(w => w.length > 3)
+                .slice(0, 5).join(' ');
+            const uniq = list => list.filter((x, i) => list.findIndex(y => key(y) === key(x)) === i);
+            good.splice(0, good.length, ...uniq(good));
+            miss.splice(0, miss.length, ...uniq(miss).filter(x => !good.some(g => key(g) === key(x))));
             if (good.length) {
                 strengths.push(...good.slice(0, item.question ? 4 : 2).map(praise));
             } else if (share >= 0.75) {
@@ -737,7 +1103,7 @@ export default class AutoTab {
             toast(Api.message(e), {type: 'error'});
             return;
         }
-        Bench.open(app, this.criteria(item), corpus.items);
+        Bench.open(app, this.criteria(item), corpus.items, this.lookfors(item));
     }
 
     /**

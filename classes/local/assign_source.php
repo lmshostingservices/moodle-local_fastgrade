@@ -138,6 +138,12 @@ class assign_source extends source {
                 ]
             ))->out(false),
             'intro' => $intro,
+            'instructions' => $this->activity_instructions(),
+            'introfiles' => $this->intro_files(),
+            'otherform' => $this->other_grading_form(),
+            'wordlimit' => $this->submission_enabled('onlinetext') ?
+                (int)($this->assign->get_submission_plugin_by_type('onlinetext')->get_config('wordlimitenabled') ?
+                $this->assign->get_submission_plugin_by_type('onlinetext')->get_config('wordlimit') : 0) : 0,
             'gradetype' => $gradetype,
             'maxgrade' => $gradetype === 'point' ? (float)$instance->grade : 0,
             'scaleitems' => $scaleitems,
@@ -156,6 +162,92 @@ class assign_source extends source {
             'sendnotifications' => (bool)$instance->sendstudentnotifications,
             'groups' => $this->get_group_info(),
         ];
+    }
+
+    /**
+     * The "Activity instructions" field (Moodle 4.0 and later), shown to students once they start.
+     *
+     * @return string HTML
+     */
+    protected function activity_instructions(): string {
+        $instance = $this->assign->get_instance();
+        if (empty($instance->activity)) {
+            return '';
+        }
+        $text = file_rewrite_pluginfile_urls(
+            $instance->activity,
+            'pluginfile.php',
+            $this->context->id,
+            'mod_assign',
+            'activityattachment',
+            0
+        );
+        return format_text($text, $instance->activityformat ?? FORMAT_HTML, ['context' => $this->context]);
+    }
+
+    /**
+     * Files attached to the assignment description, such as an assessment brief, for the checks to read.
+     *
+     * @return array [{filename, url, mimetype}]
+     */
+    protected function intro_files(): array {
+        $out = [];
+        $fs = get_file_storage();
+        foreach (['introattachment', 'activityattachment'] as $area) {
+            foreach ($fs->get_area_files($this->context->id, 'mod_assign', $area, 0, 'filename', false) as $f) {
+                if (count($out) >= 5 || $f->get_filesize() > 20 * 1024 * 1024) {
+                    continue;
+                }
+                $out[] = [
+                    'filename' => $f->get_filename(),
+                    'mimetype' => $f->get_mimetype(),
+                    'url' => \moodle_url::make_pluginfile_url(
+                        $f->get_contextid(),
+                        $f->get_component(),
+                        $f->get_filearea(),
+                        $f->get_itemid(),
+                        $f->get_filepath(),
+                        $f->get_filename()
+                    )->out(false),
+                ];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Another advanced grading form in use (for example Assignment Benchmarks): its name and the text of its
+     * preview, read through Moodle's grading form API so any grading plugin can supply criteria.
+     *
+     * @return array {method, name, text}
+     */
+    protected function other_grading_form(): array {
+        global $PAGE;
+        $manager = get_grading_manager($this->context, 'mod_assign', 'submissions');
+        $method = $manager->get_active_method();
+        if (!$method || in_array($method, ['rubric', 'guide'])) {
+            return [];
+        }
+        try {
+            $controller = $manager->get_controller($method);
+            if (!$controller || !$controller->is_form_defined()) {
+                return [];
+            }
+            $definition = $controller->get_definition();
+            $html = (string)$controller->render_preview($PAGE);
+            $text = trim(html_to_text($html, 0, false));
+            if (!empty($definition->description)) {
+                $text = trim(html_to_text($definition->description, 0, false)) . "\n" . $text;
+            }
+            return [
+                'method' => $method,
+                'name' => get_string('pluginname', 'gradingform_' . $method),
+                'text' => \core_text::substr($text, 0, 20000),
+            ];
+        } catch (\Throwable $e) {
+            debugging('Fast Grade could not read the ' . $method . ' grading form: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            return [];
+        }
     }
 
     /**

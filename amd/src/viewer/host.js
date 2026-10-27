@@ -194,11 +194,15 @@ export default class ViewerHost {
         if (app.readonly || !app.boot.autograde || !v || !v.supportsMarks || (!v.plainText && !v.pagesText)) {
             return;
         }
-        if (!app.panel.auto.hasRules(app.store.get('item'))) {
+        if (app.batch || !app.panel.auto.hasRules(app.store.get('item'))) {
             return;
         }
+        const item = app.store.get('item') || {};
         const already = [...app.annotations.items.values()].some(a => a.docref === v.docref && a.source === 'auto');
-        if (already) {
+        const gs = item.gradestate || {};
+        const marked = gs.grade !== null && gs.grade !== undefined && gs.grade !== '';
+        // Suggestions with no draft behind them (the marker left before it saved): run again so the marks fill in too.
+        if (already && (item.draft || marked)) {
             return;
         }
         const run = () => {
@@ -211,6 +215,34 @@ export default class ViewerHost {
         } else {
             setTimeout(run, 50);
         }
+    }
+
+    /**
+     * Open a document and wait until it is ready to read, converting Word and PowerPoint files first.
+     * Used by auto-mark all.
+     *
+     * @param {Object} doc
+     * @returns {Promise<boolean>} whether a viewer with text is ready
+     */
+    async openAndWait(doc) {
+        if ((doc.kind === 'office' || doc.kind === 'slides') && doc.conversion !== 'done') {
+            const started = Date.now();
+            for (;;) {
+                const r = await Api.call('convert_file', {cmid: this.app.cmid, fileid: doc.fileid, retry: false});
+                if (r.status === 'done') {
+                    doc.conversion = 'done';
+                    doc.pdfurl = r.pdfurl;
+                    break;
+                }
+                if (r.status === 'failed' || r.status === 'unsupported' || Date.now() - started > 90000) {
+                    return false;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+        }
+        await this.open(doc);
+        const v = this.viewer;
+        return !!(this.doc === doc && v && v.supportsMarks && (v.plainText || v.pagesText));
     }
 
     /**

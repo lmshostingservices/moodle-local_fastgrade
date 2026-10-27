@@ -51,6 +51,7 @@ export default class SheetViewer {
         this.host = host;
         this.docref = doc.docref;
         this.supportsMarks = true;
+        this.markType = 'cell';
         this.supportsDrawing = false;
         this.sheet = 0;
         this.formulas = false;
@@ -242,6 +243,154 @@ export default class SheetViewer {
         if (td) {
             td.scrollIntoView({block: 'center', inline: 'center', behavior: 'smooth'});
         }
+    }
+
+    /**
+     * Each sheet as text for the checks: one line per row, cells separated by " | ". Cell positions are kept so
+     * evidence can be marked on the cell.
+     *
+     * @returns {Promise<Array>} [{page, text}]
+     */
+    async pagesText() {
+        this.cellMap = [];
+        return (this.data.sheets || []).map((sh, si) => {
+            let text = '';
+            const map = [];
+            sh.rows.forEach((row, r) => {
+                let line = '';
+                (row || []).forEach((cell, c) => {
+                    if (!cell || cell.v === null || cell.v === undefined || String(cell.v).trim() === '') {
+                        return;
+                    }
+                    if (line) {
+                        line += ' | ';
+                    }
+                    const val = String(cell.v);
+                    map.push({start: text.length + line.length, end: text.length + line.length + val.length,
+                        ref: colName(c) + (r + 1), v: val, f: cell.f || ''});
+                    line += val;
+                });
+                if (line) {
+                    text += line + '\n';
+                }
+            });
+            this.cellMap[si] = map;
+            return {page: si + 1, text};
+        });
+    }
+
+    /**
+     * Anchor (a cell) for a character range from pagesText().
+     *
+     * @param {number} page sheet number
+     * @param {number} start
+     * @param {number} end
+     * @returns {Object|null}
+     */
+    anchorForPage(page, start, end) {
+        const map = (this.cellMap || [])[page - 1] || [];
+        const hit = map.find(m => m.end > start && m.start < end);
+        if (!hit) {
+            return null;
+        }
+        const sh = this.data.sheets[page - 1];
+        return {page, anchor: {cell: hit.ref, sheet: sh ? sh.name : '', exact: hit.v, formula: hit.f}};
+    }
+
+    /**
+     * Facts about the workbook for spreadsheet criteria: are totals calculated with formulas, and do they add up?
+     *
+     * @returns {Object} {totals, formulas, checked, wrong, wrongcells: [{page, ref}]}
+     */
+    sheetFacts() {
+        const num = v => {
+            if (typeof v === 'number') {
+                return v;
+            }
+            const x = parseFloat(String(v ?? '').replace(/[$,\s]/g, ''));
+            return /^[-$\s\d.,]+$/.test(String(v ?? '').trim()) && !isNaN(x) ? x : null;
+        };
+        const close = (a, b) => Math.abs(a - b) <= Math.max(0.01, Math.abs(b) * 0.005);
+        const facts = {totals: 0, formulas: 0, checked: 0, wrong: 0, wrongcells: []};
+        (this.data.sheets || []).forEach((sh, si) => {
+            const rows = sh.rows || [];
+            // Columns whose heading says total, and rows whose label says total.
+            const totalcols = new Set();
+            rows.slice(0, 8).forEach(row => (row || []).forEach((cell, c) => {
+                if (cell && typeof cell.v === 'string' && /\b(total|subtotal|amount|cost \(\$\)|sum)\b/i.test(cell.v) &&
+                        !/per\b/i.test(cell.v)) {
+                    totalcols.add(c);
+                }
+            }));
+            rows.forEach((row, r) => {
+                row = row || [];
+                const label = row.find(cell => cell && typeof cell.v === 'string' && num(cell.v) === null);
+                const totalrow = label && /\b(total|grand total|subtotal|sum)\b/i.test(label.v);
+                row.forEach((cell, c) => {
+                    const v = cell ? num(cell.v) : null;
+                    if (v === null || !(totalcols.has(c) || totalrow)) {
+                        return;
+                    }
+                    // A cell in a total column with other numbers in its row, or a number in a total row.
+                    const others = row.map((x, k) => (k !== c && x ? num(x.v) : null)).filter(x => x !== null);
+                    if (!totalrow && !others.length) {
+                        return;
+                    }
+                    facts.totals++;
+                    if (cell.f) {
+                        facts.formulas++;
+                    }
+                    let ok = null;
+                    if (!totalrow && others.length >= 2) {
+                        const prod = others.reduce((a, b) => a * b, 1);
+                        const sum = others.reduce((a, b) => a + b, 0);
+                        ok = close(v, prod) || close(v, sum) || others.some((a, i) => others.some((b, j) => i !== j &&
+                            close(v, a * b)));
+                    } else if (totalrow) {
+                        // A total adds the numbers above it: either the block of item rows above (stopping at a gap or an
+                        // earlier total), or everything since an earlier total, that total included (Total + Contingency).
+                        const isTotal = k => {
+                            const lab = (rows[k] || []).find(x => x && typeof x.v === 'string' && num(x.v) === null);
+                            return lab && /\b(total|grand total|subtotal|sum)\b/i.test(lab.v);
+                        };
+                        let block = 0;
+                        let n = 0;
+                        let since = 0;
+                        let m = 0;
+                        let stopped = false;
+                        for (let k = r - 1; k >= 0; k--) {
+                            const x = rows[k] && rows[k][c] ? num(rows[k][c].v) : null;
+                            if (x === null) {
+                                if (n || m) {
+                                    break;
+                                }
+                                continue;
+                            }
+                            if (isTotal(k)) {
+                                since += x;
+                                m++;
+                                break;
+                            }
+                            if (!stopped) {
+                                block += x;
+                                n++;
+                            }
+                            since += x;
+                            m++;
+                        }
+                        ok = n >= 2 || m >= 2 ? (close(v, block) && n >= 2) || (close(v, since) && m >= 2) : null;
+                    }
+                    if (ok !== null) {
+                        facts.checked++;
+                        if (!ok) {
+                            facts.wrong++;
+                            facts.wrongcells.push({page: si + 1, ref: colName(c) + (r + 1), v: cell.v});
+                        }
+                    }
+                });
+            });
+        });
+        return facts;
     }
 
     /**

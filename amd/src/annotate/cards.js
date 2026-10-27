@@ -26,6 +26,8 @@ import {t} from 'local_fastgrade/lib/str';
 import {tip} from 'local_fastgrade/ui/tooltip';
 import * as Dictate from 'local_fastgrade/voice/dictate';
 
+const SVGNS = 'http://www.w3.org/2000/svg';
+
 export const POL = {
     improvement: {icon: 'up', label: () => t('pol_improvement')},
     positive: {icon: 'check', label: () => t('pol_positive')},
@@ -127,6 +129,101 @@ export default class Cards {
             bottom = top + el.offsetHeight;
         });
         this.margin.style.minHeight = (bottom + 40) + 'px';
+        this.drawLinks();
+    }
+
+    /**
+     * Draw a thin leader line from each card to its mark, in the card's own colour.
+     */
+    drawLinks() {
+        cancelAnimationFrame(this.linkFrame);
+        this.linkFrame = requestAnimationFrame(() => this.paintLinks());
+    }
+
+    /**
+     * Paint the leader lines now.
+     */
+    paintLinks() {
+        const paper = this.margin.parentElement;
+        if (!paper || this.margin.classList.contains('is-list')) {
+            return;
+        }
+        if (!this.links || !this.links.isConnected) {
+            this.links = document.createElementNS(SVGNS, 'svg');
+            this.links.setAttribute('class', 'fg-card-links');
+            this.links.setAttribute('aria-hidden', 'true');
+            paper.prepend(this.links);
+            if (!this.linkObs && window.ResizeObserver) {
+                this.linkObs = new ResizeObserver(() => this.drawLinks());
+            }
+            if (this.linkObs) {
+                this.linkObs.disconnect();
+                this.linkObs.observe(paper);
+            }
+        }
+        while (this.links.firstChild) {
+            this.links.firstChild.remove();
+        }
+        const pr = paper.getBoundingClientRect();
+        this.els.forEach((card, id) => {
+            const cr = card.getBoundingClientRect();
+            const mr = this.markRect(paper, id);
+            if (!mr || !cr.width || card.closest('[hidden]')) {
+                return;
+            }
+            const x1 = mr.right - pr.left + 1;
+            const y1 = mr.bottom - pr.top + 1;
+            const x2 = cr.left - pr.left;
+            const y2 = cr.top - pr.top + 20;
+            // Run along the bottom of the marked line to the page edge (never through words), then curve to the card.
+            const col = mr.host && mr.host.closest('.fg-page, .fg-textmain, .fg-sheet, table');
+            const xe = Math.min(x2 - 12, Math.max(x1, col ? col.getBoundingClientRect().right - pr.left + 4 : x1));
+            if (x2 - x1 < 8) {
+                return;
+            }
+            const xm = xe + (x2 - xe) * 0.55;
+            const colour = getComputedStyle(card).borderLeftColor;
+            const g = document.createElementNS(SVGNS, 'g');
+            g.setAttribute('class', 'fg-card-link' + (card.classList.contains('is-selected') ? ' is-selected' : '') +
+                (card.classList.contains('is-hover') ? ' is-hover' : ''));
+            g.dataset.cid = id;
+            g.style.color = colour;
+            const path = document.createElementNS(SVGNS, 'path');
+            path.setAttribute('d', `M${x1},${y1} H${xe} C${xm},${y1} ${xm},${y2} ${x2},${y2}`);
+            const dot = document.createElementNS(SVGNS, 'circle');
+            dot.setAttribute('cx', x1);
+            dot.setAttribute('cy', y1);
+            dot.setAttribute('r', 2.5);
+            g.append(path, dot);
+            this.links.appendChild(g);
+        });
+    }
+
+    /**
+     * Where a card's mark is on screen: the top line of the mark, so the line points at where the mark starts.
+     *
+     * @param {HTMLElement} paper
+     * @param {string} id
+     * @returns {Object|null} {top, bottom, right, height, host}
+     */
+    markRect(paper, id) {
+        let best = null;
+        paper.querySelectorAll(`[data-cid="${CSS.escape(id)}"]`).forEach(el => {
+            if (this.margin.contains(el) || (this.links && this.links.contains(el))) {
+                return;
+            }
+            const parts = el.children.length && el instanceof SVGGElement ? [...el.children] : [el];
+            parts.forEach(n => {
+                const r = n.getBoundingClientRect();
+                if (!r.width && !r.height) {
+                    return;
+                }
+                if (!best || r.top < best.top - 3 || (Math.abs(r.top - best.top) <= 3 && r.right > best.right)) {
+                    best = {top: r.top, bottom: r.bottom, right: r.right, height: r.height, host: el};
+                }
+            });
+        });
+        return best;
     }
 
     /**
@@ -272,8 +369,14 @@ export default class Cards {
         const el = h('article.fg-card', {"class": `is-${a.polarity} ${a.status === 'suggested' ? 'is-suggested' : ''} ` +
                 `${editing ? 'is-editing' : ''}`, dataset: {cid: a.clientid}, tabindex: '0',
             'aria-label': `${t('comment')} ${n}: ${pol.label()}. ${a.comment || ''}`,
-            onmouseenter: () => c.viewer.hoverMark(a.clientid, true),
-            onmouseleave: () => c.viewer.hoverMark(a.clientid, false),
+            onmouseenter: () => {
+                c.viewer.hoverMark(a.clientid, true);
+                this.linkClass(a.clientid, 'is-hover', true);
+            },
+            onmouseleave: () => {
+                c.viewer.hoverMark(a.clientid, false);
+                this.linkClass(a.clientid, 'is-hover', false);
+            },
             onclick: () => {
                 c.select(a.clientid);
                 c.viewer.focusMark(a.clientid);
@@ -330,6 +433,20 @@ export default class Cards {
         if (el) {
             el.classList.toggle('is-hover', on);
         }
+        this.linkClass(id, 'is-hover', on);
+    }
+
+    /**
+     * Toggle a state on one leader line.
+     *
+     * @param {string} id
+     * @param {string} cls
+     * @param {boolean} on
+     */
+    linkClass(id, cls, on) {
+        if (this.links) {
+            this.links.querySelectorAll('.fg-card-link').forEach(g => g.classList.toggle(cls, on && g.dataset.cid === id));
+        }
     }
 
     /**
@@ -339,6 +456,7 @@ export default class Cards {
      */
     select(id) {
         this.els.forEach((el, k) => el.classList.toggle('is-selected', k === id));
+        this.linkClass(id, 'is-selected', true);
         const el = this.els.get(id);
         if (el) {
             el.scrollIntoView({block: 'nearest', behavior: 'smooth'});
@@ -351,5 +469,9 @@ export default class Cards {
     clear() {
         replace(this.margin);
         this.els.clear();
+        if (this.links) {
+            this.links.remove();
+            this.links = null;
+        }
     }
 }

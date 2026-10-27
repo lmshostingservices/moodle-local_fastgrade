@@ -358,6 +358,18 @@ export const evaluate = (text, rules) => {
                 notes.push({kind: 'mustnot', ok: !bad, label: cfg.label || (cfg.terms || []).join(', '), detail: String(bad)});
                 break;
             }
+            case 'ideas': {
+                total++;
+                const res = ideasCheck(text, cfg.terms || []);
+                const need = Math.min((cfg.terms || []).length, Math.max(1, cfg.min || Math.ceil((cfg.terms || []).length * 0.8)));
+                const ok = res.found.length >= need;
+                if (ok) {
+                    met++;
+                }
+                notes.push({kind: 'ideas', ok, ratio: need ? Math.min(1, res.found.length / need) : 0, label: cfg.label || '',
+                    detail: `${res.found.length}/${(cfg.terms || []).length}`, found: res.found, missing: res.missing});
+                break;
+            }
             case 'length': {
                 total++;
                 const ok = (!cfg.min || allwords >= cfg.min) && (!cfg.max || allwords <= cfg.max);
@@ -496,6 +508,263 @@ const contentStems = (text, demote) => {
         out.push(CANON[st] || st);
     });
     return out;
+};
+
+/* ---------- Checks from the assignment instructions (plain text rules, no AI) ---------- */
+
+// Words that start a task step: "Identify the hazards…", "Explain how…".
+const STEPVERB = new RegExp('^(identify|describe|explain|discuss|outline|list|select|choose|assess|evaluate|analy[sz]e|compare|' +
+    'justify|recommend|develop|prepare|create|build|design|write|include|provide|use|apply|show|demonstrate|state|give|define|' +
+    'summari[sz]e|reflect|calculate|tell|add|consider|review|plan|record|report|propose|investigate|examine|determine|' +
+    'implement|monitor|consult|prioriti[sz]e|rate|name|what|how|why|who|when|where)\\b', 'i');
+
+/**
+ * The steps the instructions ask for: list items, and sentences that start with a task word.
+ *
+ * @param {string} text instructions, one block per line
+ * @returns {string[]}
+ */
+export const instructionSteps = text => {
+    const steps = [];
+    const QSTART = '(?:what|how|why|who|when|where|which|' + STEPVERB.source.slice(2, -3) + ')\\b';
+    const add = x => {
+        x = x.trim().replace(/^(and|or|then|also)\s+/i, '').replace(/[.;:,?!]+$/, '').trim();
+        if (x.length >= 12 && !/^(upload|submit|attach|save|use (apa|harvard)|reference)\b/i.test(x) &&
+                !/\b(at least|no more than|up to|about|minimum of|maximum of|than|of|in)$/i.test(x)) {
+            steps.push(x.charAt(0).toUpperCase() + x.slice(1));
+        }
+    };
+    const LIST = /^(?:[-•*▪◦●–]|\(?\d{1,2}[.)]|\(?[a-h][.)])\s+(.+)$/i;
+    const lines = String(text || '').split(/\n+/).map(l => l.trim()).filter(Boolean);
+    const haslist = lines.filter(l => LIST.test(l)).length >= 2;
+    lines.forEach(line => {
+        const m = line.match(LIST);
+        // Word limits and file types are checked separately, so take them out of the step text.
+        const body = (m ? m[1] : line).replace(/\(?\s*\d[\d,]*\s*(?:(?:-|–|—|to)\s*\d[\d,]*\s*)?words?\s*\)?/gi, ' ')
+            .replace(/\s{2,}/g, ' ');
+        sentences(body).forEach(sn => {
+            let x = sn.text.trim();
+            // "Write a reflection: what…, how… and what…": the questions after the colon are the steps.
+            const colon = x.indexOf(':');
+            if (colon > 0 && colon < x.length - 12) {
+                const after = x.slice(colon + 1);
+                if (new RegExp('^\\s*' + QSTART, 'i').test(after)) {
+                    x = after.trim();
+                }
+            }
+            // Split a list of questions or tasks in one sentence: ", how…", "; explain…", " and what…".
+            const clauses = x.split(new RegExp('\\s*(?:[,;]\\s*(?:and\\s+|or\\s+)?|\\s+and\\s+)(?=' + QSTART + ')', 'i'));
+            const asks = clauses.filter(c => new RegExp('^\\s*' + QSTART, 'i').test(c));
+            if (asks.length >= 2) {
+                clauses.forEach(add);
+            } else if (m || (!haslist && STEPVERB.test(x)) || /\?$/.test(x)) {
+                add(x);
+            }
+        });
+    });
+    return [...new Set(steps)].slice(0, 12);
+};
+
+/**
+ * The instruction step closest to a criterion (shared content words), or ''.
+ *
+ * @param {string} criterion
+ * @param {string[]} steps
+ * @returns {string}
+ */
+export const matchStep = (criterion, steps) => {
+    const a = new Set(contentStems(criterion, new Set()));
+    let best = '';
+    let bestscore = 0;
+    (steps || []).forEach(st => {
+        const b = new Set(contentStems(st, new Set()));
+        const shared = [...a].filter(x => b.has(x)).length;
+        const score = shared / Math.max(1, Math.min(a.size, b.size));
+        if (shared >= 2 && score > bestscore) {
+            best = st;
+            bestscore = score;
+        }
+    });
+    return bestscore >= 0.3 ? best : '';
+};
+
+// Words too general to show a part was answered.
+const KWFILLER = new Set(('one two three four five each every per using use used take taking make before after so then ' +
+    'also still own way part question questions answer example examples difference between thing things new short ' +
+    'long good well first second third main least most more less').split(' '));
+
+/**
+ * A short label for a step: its first few words.
+ *
+ * @param {string} step
+ * @returns {string}
+ */
+const stepLabel = step => {
+    const w = step.replace(/[:|]/g, ' ').split(/\s+/).filter(Boolean);
+    if (w.length <= 8) {
+        return w.join(' ');
+    }
+    // Cut after 7 words, but not on a small word ("…with a").
+    const cut = w.slice(0, 7);
+    const small = /^(a|an|the|of|with|and|or|to|for|in|on|at|by|from|that|each|your|their|its)$/i;
+    while (cut.length > 3 && small.test(cut[cut.length - 1])) {
+        cut.pop();
+    }
+    return cut.join(' ').replace(/[,;]$/, '') + '…';
+};
+
+/**
+ * Ready-made checks read from the assignment instructions: the parts asked for, the word limit,
+ * referencing and any legislation named. Plain text rules: nothing leaves the browser.
+ *
+ * @param {string} text instructions, one block per line
+ * @returns {Array} rules [{kind, config, from: 'instructions'}]
+ */
+export const fromInstructions = text => {
+    const src = String(text || '');
+    const rules = [];
+    const rule = (kind, config) => rules.push({kind, config: Object.assign({label: '', terms: [], min: 1, max: 0, comment: '',
+        preset: '', regex: ''}, config), from: 'instructions'});
+    const steps = instructionSteps(src);
+    if (steps.length >= 2) {
+        const parts = steps.map(st => {
+            // Distinct keywords: skip any that share a word with one already picked.
+            const kws = [];
+            const used = new Set();
+            suggestTerms(st, '').filter(k => !META.has(norm(stem(k.split(' ')[0]))) &&
+                !k.toLowerCase().split(' ').some(w => KWFILLER.has(w))).forEach(k => {
+                const ws = k.toLowerCase().split(' ').map(w => norm(stem(w)));
+                if (kws.length < 4 && !ws.some(w => used.has(w))) {
+                    kws.push(k);
+                    ws.forEach(w => used.add(w));
+                }
+            });
+            return kws.length ? stepLabel(st) + ': ' + kws.join(', ') : '';
+        }).filter(Boolean);
+        if (parts.length >= 2) {
+            rule('parts', {terms: parts});
+        }
+    }
+    const n = x => parseInt(String(x).replace(/,/g, ''), 10);
+    const range = src.match(/(\d[\d,]{1,5})\s*(?:-|–|—|to)\s*(\d[\d,]{1,5})\s*words/i);
+    const atleast = src.match(/(?:at least|minimum(?: of)?|no fewer than|no less than)\s*(\d[\d,]{1,5})\s*words/i);
+    const atmost = src.match(/(?:no more than|maximum(?: of)?|up to|not (?:to )?exceed(?:ing)?|under)\s*(\d[\d,]{1,5})\s*words/i);
+    const about = src.match(/(?:about|around|approximately|approx\.?|roughly|~)\s*(\d[\d,]{1,5})\s*words/i);
+    let min = 0;
+    let max = 0;
+    if (range) {
+        min = n(range[1]);
+        max = n(range[2]);
+    } else if (atleast || atmost) {
+        min = atleast ? n(atleast[1]) : 0;
+        max = atmost ? n(atmost[1]) : 0;
+    } else if (about) {
+        min = Math.round(n(about[1]) * 0.9);
+        max = Math.round(n(about[1]) * 1.1);
+    }
+    if (min || max) {
+        const range = min ? `at least ${min} words` : `at most ${max} words`;
+        rule('length', {min, max, label: min && max ? `${min}–${max} words` : range});
+    }
+    if (/\b(APA|Harvard|Chicago|MLA|reference list|referenc(e|ing)|in-text citations?|cite|bibliography)\b/i.test(src)) {
+        rule('structure', {preset: 'references', label: 'a reference list'});
+        rule('pattern', {preset: 'citation', min: 1, label: 'in-text citations'});
+    }
+    // Legislation named in full: capitalised words (and "and", "of", "(General)"), then Act, Regulations or Code.
+    const LAWNAME = new RegExp('[A-Z][A-Za-z]+(?:\\s+(?:[A-Z][A-Za-z]+|and|of|for|the|\\([A-Za-z]+\\)))*' +
+        '\\s+(?:Act|Regulations?|Code of Practice)(?=\\s+(?:19|20)\\d{2})', 'g');
+    const laws = [...new Set((src.match(LAWNAME) || []).map(x => x.trim()))];
+    if (laws.length) {
+        rule('anyof', {terms: laws, min: laws.length, label: 'the legislation named'});
+    } else if (/\b(legislation|act and regulations?|regulations?|codes? of practice)\b/i.test(src)) {
+        rule('pattern', {preset: 'legislation', min: 1, label: 'legislation named with its year'});
+    }
+    if (/\bheadings?\b/i.test(src) && steps.length >= 2) {
+        rule('structure', {preset: 'headings', min: Math.min(steps.length, 6), label: 'a heading for each part'});
+    }
+    return rules;
+};
+
+/* ---------- Key ideas: is each idea in a criterion present anywhere in the work? ---------- */
+
+// Everyday words for the same idea, so "fitted barriers" counts as a control and "rated high" as a risk rating.
+const IDEAWORDS = {
+    control: 'control barrier guard replace eliminate substitute isolate engineering procedure limiter separate fence ' +
+        'signage ppe interlock enclosure ventilation',
+    assess: 'assess rating rated likelihood consequence matrix high medium low likely unlikely major minor moderate ' +
+        'extreme catastrophic severity probability',
+    consult: 'consult consultation hsr committee say concern concerns raise talk feedback toolbox',
+    understand: 'understand understanding question questions quiz check explain ask confirm',
+    action: 'action actions follow wear report must procedure steps',
+    record: 'record records register minutes log document',
+    review: 'review monitor audit inspect reassess',
+    legisl: 'legislation act regulation regulations law code codes duty duties',
+    budget: 'budget cost costs total totals price spend',
+    formula: 'formula formulas sum calculate calculated calculation',
+    // Reflection prompts: what was learned, how it was used, what comes next.
+    learn: 'learn learned learnt lesson lessons realise realised realize realized understood discover discovered ' +
+        'taught showed insight',
+    apply: 'apply applied use used practice implement implemented introduce introduced tried put',
+    future: 'next future will plan plans going intend differently improve',
+    work: 'work workplace job site shift role',
+};
+// Words that describe the quality of work rather than an idea in it.
+const NOTIDEA = new Set(('accur accurate content cover covers covered clear clearly support supports delivery deliver ' +
+    'relevant detail detailed effective appropriate well good all every most some few main key overall quality ' +
+    'complete completed correct justified justify sound strong weak range variety evidence shows show linked link ' +
+    'aspect aspects element elements area areas level levels criterion criteria encourage encourages ensure ensures ' +
+    'demonstrate demonstrates provide provides use uses using apply applies').split(' ').map(w => norm(stem(w))));
+const IDEAMAP = (() => {
+    const m = {};
+    Object.entries(IDEAWORDS).forEach(([idea, words]) => words.split(' ').forEach(w => {
+        m[norm(stem(w))] = idea;
+    }));
+    return m;
+})();
+
+/**
+ * The ideas in a text, as canonical stems.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
+const ideaStems = text => contentStems(text, new Set()).map(st => IDEAMAP[st] || st).filter(st => !NOTIDEA.has(st));
+
+/**
+ * The key ideas a criterion asks for: its distinct content words, shown as words.
+ *
+ * @param {string} text criterion and its top level description
+ * @returns {string[]}
+ */
+export const keyIdeas = text => {
+    const seen = new Set();
+    const out = [];
+    tokens(String(text || '').toLowerCase()).forEach(x => {
+        const st = ideaStems(x.w)[0];
+        if (st && !seen.has(st) && x.w.length > 2 && !/^\d+$/.test(x.w)) {
+            seen.add(st);
+            out.push(x.w);
+        }
+    });
+    return out.slice(0, 8);
+};
+
+/**
+ * Check which key ideas appear anywhere in a text.
+ *
+ * @param {string} text
+ * @param {string[]} ideas
+ * @returns {Object} {found: [], missing: [], ratio}
+ */
+export const ideasCheck = (text, ideas) => {
+    const have = new Set(ideaStems(text));
+    const found = [];
+    const missing = [];
+    (ideas || []).forEach(w => {
+        const st = w.split(/\s*[|/]\s*/).map(x => ideaStems(x)[0]).filter(Boolean);
+        (st.some(x => have.has(x)) ? found : missing).push(w.split(/\s*[|/]\s*/)[0]);
+    });
+    return {found, missing, ratio: ideas && ideas.length ? found.length / ideas.length : 0};
 };
 
 /**
@@ -654,18 +923,35 @@ export const coverage = (text, points, question = '') => {
  * @returns {Array} [{label, ok, start, end}]
  */
 export const partsCheck = (text, parts) => {
-    const sents = sentences(text).map(s => Object.assign(s, {tk: tokens(s.text)}));
+    const one = sentences(text);
+    // Each sentence, and each pair of neighbouring sentences (an answer often spreads one point over two).
+    const sents = one.concat(one.slice(1).map((s, i) => ({text: one[i].text + ' ' + s.text, start: one[i].start, end: s.end,
+        pair: true}))).map(s => Object.assign(s, {tk: tokens(s.text), ideas: new Set(ideaStems(s.text))}));
+    // A keyword is found as written, or as the same idea in everyday words ("lesson" for "learn").
+    const has = (s, kw, st) => findPhrase(s.tk, st).length > 0 || (() => {
+        const ids = ideaStems(kw);
+        return ids.length > 0 && ids.every(x => s.ideas.has(x));
+    })();
     return (parts || []).map(p => {
         const [label, kws] = p.includes(':') ? [p.slice(0, p.indexOf(':')).trim(), p.slice(p.indexOf(':') + 1)] : [p, p];
-        const alts = kws.split(/[,|/]/).map(x => x.trim()).filter(Boolean).map(phraseStems);
+        const words = kws.split(/[,|/]/).map(x => x.trim()).filter(Boolean);
+        const alts = words.map(phraseStems);
+        // A part is answered by the sentence that uses the most of its keywords: at least two when it has two or more,
+        // so one shared word (a title, a heading) is not enough.
+        const meaningful = words.filter(w => ideaStems(w).length).length || alts.length;
+        const need = Math.min(2, meaningful);
+        let best = null;
+        let bestn = 0;
         for (const s of sents) {
-            for (const st of alts) {
-                if (findPhrase(s.tk, st).length) {
-                    return {label, ok: true, start: s.start, end: s.end};
-                }
+            const n = alts.filter((st, i) => has(s, words[i], st)).length;
+            // Prefer a single sentence over a pair when they match as well.
+            if (n > bestn || (n === bestn && n && best && best.pair && !s.pair)) {
+                best = s;
+                bestn = n;
             }
         }
-        return {label, ok: false, start: -1, end: -1};
+        return best && bestn >= need ? {label, ok: true, start: best.start, end: best.end} :
+            {label, ok: false, start: -1, end: -1};
     });
 };
 

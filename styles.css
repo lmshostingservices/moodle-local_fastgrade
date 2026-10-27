@@ -1511,6 +1511,7 @@ kbd {
 .fg-margin {
     position: relative;
     min-width: 0;
+    z-index: 4;
 }
 .fg-margin.is-list {
     display: flex;
@@ -3103,8 +3104,9 @@ kbd {
 /* ---------- Floating button on Moodle pages ---------- */
 .fg-fab {
     position: fixed;
+    /* Sits above Moodle's own "?" footer button in the bottom-right corner. */
     right: 22px;
-    bottom: 22px;
+    bottom: 84px;
     z-index: 1000;
     display: inline-flex;
     align-items: center;
@@ -4751,4 +4753,175 @@ body.fg-report-page .fg-mount {
 .fg-app input[type="radio"]:focus-visible,
 .fg-dialog input[type="radio"]:focus-visible {
     box-shadow: 0 0 0 3px var(--fg-accent-ring);
+}
+
+/* Theme-proof hovers: some themes fill every button:hover with a dark colour, which hides our grey tab text. */
+.fg-app .fg-tabs .fg-tab:hover,
+.fg-app .fg-tabs .fg-tab:focus,
+.fg-app .fg-tabs .fg-tab:active,
+.fg-app .fg-doctab:hover,
+.fg-app .fg-doctab:active,
+.fg-rp-tab.fg-rp-tab:hover,
+.fg-rp-tab.fg-rp-tab:active {
+    background: rgba(14, 136, 255, 0.08) !important;
+    background-image: none !important;
+    color: var(--fg-text) !important;
+    box-shadow: none !important;
+    text-decoration: none;
+}
+.fg-app .fg-tabs .fg-tab:focus-visible {
+    outline: 2px solid var(--fg-accent);
+    outline-offset: -2px;
+}
+.fg-app .fg-tabs .fg-tab[aria-selected="true"]:hover {
+    border-bottom-color: var(--fg-accent);
+}
+
+/* Leader lines from comment cards to their marks. */
+.fg-card-links {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 3;
+}
+.fg-card-link path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.25;
+    opacity: 0.45;
+    transition: opacity 0.15s, stroke-width 0.15s;
+}
+.fg-card-link circle {
+    fill: currentColor;
+    opacity: 0.7;
+}
+.fg-card-link.is-hover path,
+.fg-card-link.is-selected path {
+    opacity: 1;
+    stroke-width: 2;
+}
+.fg-app[data-links="off"] .fg-card-links {
+    display: none;
+}
+@media print {
+    .fg-card-links {
+        display: none;
+    }
+}
+
+/* Set up checks: where ready-made checks came from. */
+.fg-lf-step,
+.fg-lf-ready {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(14, 136, 255, 0.07);
+    color: var(--fg-text-2);
+}
+.fg-lf-step svg,
+.fg-lf-ready svg {
+    flex: none;
+    margin-top: 2px;
+    color: var(--fg-accent);
+}
+.fg-lf-tag {
+    flex: none;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(14, 136, 255, 0.1);
+    color: var(--fg-accent);
+    font-size: 11px;
+    font-weight: 650;
+}
+
+/* Auto-mark all: progress card. */
+.fg-batch {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: min(520px, calc(100vw - 32px));
+    padding: 12px 14px;
+    border: 1px solid var(--fg-border);
+    border-radius: 12px;
+    background: var(--fg-surface);
+    color: var(--fg-text);
+    box-shadow: var(--fg-shadow-lg);
+}
+.fg-batch > svg {
+    flex: none;
+    color: var(--fg-accent);
+}
+.fg-batch-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.fg-batch-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.fg-batch-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.fg-batch-count {
+    flex: none;
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+}
+.fg-batch-track {
+    display: block;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--fg-border);
+    overflow: hidden;
+}
+.fg-batch-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: #22c65e;
+    transition: width 0.3s;
+}
+
+/* Set up checks: where checks come from. */
+.fg-lf-sources {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--fg-border);
+    border-radius: 10px;
+}
+.fg-lf-sources legend {
+    padding: 0 4px;
+    font-size: 13px;
+    font-weight: 650;
+}
+.fg-lf-sources p {
+    margin: 0 0 6px;
+}
+.fg-lf-source-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 4px 16px;
+}
+.fg-lf-source-list .is-absent span {
+    color: var(--fg-muted);
 }

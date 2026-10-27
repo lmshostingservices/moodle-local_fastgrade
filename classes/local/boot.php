@@ -49,6 +49,7 @@ class boot {
             'autograde' => get_config('local_fastgrade', 'autograde') === false ? true :
                 (bool)get_config('local_fastgrade', 'autograde'),
             'precedents' => (bool)get_config('local_fastgrade', 'precedents'),
+            'checksources' => self::check_sources(),
             'libs' => [
                 'pdfjs' => $base . '/pdfjs/pdf.min.js',
                 'pdfworker' => $base . '/pdfjs/pdf.worker.min.js',
@@ -60,5 +61,20 @@ class boot {
             ],
             'strings' => $strings,
         ];
+    }
+
+    /**
+     * Where the auto-marking checks may read from, as set by the site administrator. Every source is on
+     * unless it has been turned off.
+     *
+     * @return string[]
+     */
+    public static function check_sources(): array {
+        $all = ['instructions', 'attachments', 'grading', 'otherforms', 'graderinfo', 'question', 'template', 'wordlimit'];
+        $set = get_config('local_fastgrade', 'checksources');
+        if ($set === false) {
+            return $all;
+        }
+        return array_values(array_intersect($all, array_filter(explode(',', (string)$set))));
     }
 }

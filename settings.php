@@ -164,6 +164,16 @@ if ($hassiteconfig) {
                 1
             )
         );
+        $sources = ['instructions', 'attachments', 'grading', 'otherforms', 'graderinfo', 'question', 'template', 'wordlimit'];
+        $settings->add(
+            new admin_setting_configmulticheckbox(
+                "$c/checksources",
+                get_string('checksources', $c),
+                get_string('checksources_desc', $c),
+                array_fill_keys($sources, 1),
+                array_combine($sources, array_map(fn($k) => get_string('src_' . $k, $c), $sources))
+            )
+        );
         $settings->add(
             new admin_setting_configcheckbox(
                 "$c/precedents",

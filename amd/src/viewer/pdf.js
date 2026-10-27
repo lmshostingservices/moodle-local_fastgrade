@@ -94,7 +94,7 @@ export default class PdfViewer {
         });
         this.resizeObs.observe(this.scroll);
         if (this.doc.kind === 'slides') {
-            this.loadNotes();
+            this.notesReady = this.loadNotes();
         }
     }
 
@@ -263,21 +263,15 @@ export default class PdfViewer {
                 p.canvas.getContext('2d').drawImage(off, 0, 0);
                 off.width = 0;
                 off.height = 0;
-                if (!p.textReady || p.textScale !== this.scale) {
-                    replace(p.text);
-                    const tl = new this.pdfjs.TextLayer({textContentSource: p.page.streamTextContent(), container: p.text,
-                        viewport: p.page.getViewport({scale: this.scale})});
-                    await tl.render();
-                    p.text.append(h('div.endOfContent'));
-                    p.textReady = true;
-                    p.textScale = this.scale;
-                    p.textString = null;
-                }
+                await this.buildText(p);
             }
             p.canvas.style.width = w + 'px';
             p.canvas.style.height = hh + 'px';
             p.rendered = this.scale;
             p.stale = false;
+            if (this.annotator && this.annotator.cards) {
+                this.annotator.cards.drawLinks();
+            }
         } catch (e) {
             if (!e || e.name !== 'RenderingCancelledException') {
                 window.console.warn(e);
@@ -982,6 +976,42 @@ export default class PdfViewer {
         setTimeout(() => this.hoverMark(id, false), 900);
     }
 
+    /**
+     * Build a page's text layer for the current scale. The layer is built off to the side and swapped in only if it is
+     * still the latest build, so overlapping renders (zooming, searching) never leave two layers on top of each other.
+     *
+     * @param {Object} p page
+     * @returns {Promise}
+     */
+    buildText(p) {
+        const scale = this.scale;
+        if (p.textReady && p.textScale === scale) {
+            return Promise.resolve();
+        }
+        if (p.textJob && p.textJob.scale === scale) {
+            return p.textJob.promise;
+        }
+        const job = {scale};
+        p.textJob = job;
+        job.promise = (async() => {
+            const div = h('div.textLayer');
+            const tl = new this.pdfjs.TextLayer({textContentSource: p.page.streamTextContent(), container: div,
+                viewport: p.page.getViewport({scale})});
+            await tl.render();
+            if (p.textJob !== job || this.destroyed) {
+                return;
+            }
+            div.append(h('div.endOfContent'));
+            p.text.replaceWith(div);
+            p.text = div;
+            p.textReady = true;
+            p.textScale = scale;
+            p.textString = null;
+            p.textJob = null;
+        })();
+        return job.promise;
+    }
+
     /* ---------- Zoom, search, notes ---------- */
 
     /**
@@ -1012,14 +1042,7 @@ export default class PdfViewer {
     async ensureAllText() {
         for (const p of this.pages) {
             if (!p.textReady && p.page) {
-                replace(p.text);
-                const tl = new this.pdfjs.TextLayer({textContentSource: p.page.streamTextContent(), container: p.text,
-                    viewport: p.page.getViewport({scale: this.scale})});
-                await tl.render();
-                p.text.append(h('div.endOfContent'));
-                p.textReady = true;
-                p.textScale = this.scale;
-                p.textString = null;
+                await this.buildText(p);
             }
         }
     }
@@ -1143,6 +1166,7 @@ export default class PdfViewer {
         try {
             const res = await fetch(this.doc.dataurl + '&type=notes', {credentials: 'same-origin'});
             const data = await res.json();
+            this.slideNotes = (data.notes || []).map(n => String(n || ''));
             if (!data.notes || !data.notes.some(n => n && n.trim())) {
                 return;
             }

@@ -30,7 +30,7 @@ import {toast} from 'local_fastgrade/ui/toast';
 import * as Engine from 'local_fastgrade/autograde/engine';
 import * as Synonyms from 'local_fastgrade/autograde/synonyms';
 
-const KINDS = ['keypoints', 'anyof', 'term', 'parts', 'pattern', 'mustnot', 'length', 'structure', 'threshold'];
+const KINDS = ['keypoints', 'ideas', 'anyof', 'term', 'parts', 'pattern', 'mustnot', 'length', 'structure', 'threshold'];
 const PRESETS = ['citation', 'legislation', 'year', 'money', 'percent', 'number', 'url'];
 const STRUCT = ['references', 'headings', 'list'];
 
@@ -45,6 +45,9 @@ const blank = (kind, crit) => {
     const config = {label: '', terms: [], min: 1, max: 0, comment: '', preset: '', regex: '', levelid: 0, partiallevelid: 0};
     if (kind === 'keypoints') {
         config.terms = Engine.splitPoints(crit.benchmark);
+    } else if (kind === 'ideas') {
+        config.terms = Engine.keyIdeas(crit.text + ' ' + (crit.top || ''));
+        config.min = 0;
     } else if (kind === 'anyof') {
         config.terms = Engine.suggestTerms(crit.text, crit.benchmark).slice(0, 8);
         config.min = Math.min(2, config.terms.length || 1);
@@ -65,13 +68,41 @@ const blank = (kind, crit) => {
  * @param {Object} app
  * @param {Array} criteria
  * @param {Function} onsaved
+ * @param {Object} start the checks that run now, including ready-made ones nobody has saved yet
+ * @param {Object} ctx {sources, quiz, info}
  */
-export const open = (app, criteria, onsaved) => {
-    const all = JSON.parse(JSON.stringify(app.store.get('lookfors') || {}));
+export const open = (app, criteria, onsaved, start, ctx = {}) => {
+    const all = JSON.parse(JSON.stringify(start || app.store.get('lookfors') || {}));
     let current = criteria[0];
     const nav = h('nav.fg-lf-nav');
     const pane = h('div.fg-lf-pane');
     const compliance = h('input', {type: 'checkbox', checked: (all.all || []).some(r => r.kind === 'compliance')});
+    // Where the ready-made checks come from, for this activity.
+    const info = ctx.info || {};
+    const avail = ctx.quiz ? ['graderinfo', 'question', 'template', 'wordlimit'] :
+        ['instructions', 'attachments', 'grading', 'otherforms', 'wordlimit'];
+    const chosen = new Set(ctx.sources || avail);
+    const found = {
+        instructions: !!(textOf(info.intro || '') + textOf(info.instructions || '')).trim(),
+        attachments: (info.introfiles || []).length > 0,
+        grading: info.method === 'rubric' || info.method === 'guide',
+        otherforms: !!(info.otherform && info.otherform.text),
+        wordlimit: ctx.quiz || !!info.wordlimit,
+        graderinfo: true, question: true, template: true,
+    };
+    let sourcesChanged = false;
+    const sourceBox = h('fieldset.fg-lf-sources', null, h('legend', null, t('lf_sources')),
+        h('p.fg-small.fg-muted', null, t('lf_sources_help')),
+        h('div.fg-lf-source-list', null, avail.map(k => h('label.fg-check', {"class": found[k] ? '' : 'is-absent'},
+            h('input', {type: 'checkbox', checked: chosen.has(k), onchange: e => {
+                if (e.target.checked) {
+                    chosen.add(k);
+                } else {
+                    chosen.delete(k);
+                }
+                sourcesChanged = true;
+            }}), h('span', null, t('src_' + k)),
+            found[k] ? null : h('small.fg-muted', null, ' · ' + t('src_none'))))));
 
     const drawNav = () => replace(nav, criteria.map(c => h('button.fg-lf-crit', {type: 'button',
         'aria-pressed': String(c === current), onclick: () => {
@@ -134,6 +165,9 @@ export const open = (app, criteria, onsaved) => {
                     rule.kind === 'mustnot' ? text(rule, 'comment', t('lf_comment'), t('lf_comment_placeholder')) : null];
             case 'parts':
                 return [termsField(rule, t('lf_parts'), t('lf_parts_help'), 4)];
+            case 'ideas':
+                return [termsField(rule, t('lf_ideas'), t('lf_ideas_help'), 4),
+                    h('div.fg-field-row', null, num(rule, 'min', t('lf_ideas_min')))];
             case 'pattern':
                 return [h('div.fg-field-row', null, select(rule, 'preset', t('lf_preset'), [['', t('lf_custom')],
                     ...PRESETS.map(p => [p, t('preset_' + p)])]), num(rule, 'min', t('lf_atleast'))),
@@ -166,10 +200,20 @@ export const open = (app, criteria, onsaved) => {
                 current.benchmark ? h('details', null, h('summary', null, t('lf_benchmark')), h('p.fg-small', null,
                     current.benchmark))
                     : null),
-            rules.length ? null : h('p.fg-muted.fg-small', null, t('lf_none')),
+            current.step ? h('p.fg-small.fg-lf-step', null, icon('link', 'fg-i-sm'), t('lf_step', current.step)) : null,
+            rules.some(r => r.auto) ? h('p.fg-small.fg-lf-ready', null, icon('wand', 'fg-i-sm'),
+                t(current.whole ? 'lf_ready_instructions' : 'lf_ready_rubric')) : null,
+            rules.length ? null : h('p.fg-muted.fg-small', null,
+                current.whole && !current.text.trim() ? t('lf_nointro') : t('lf_none')),
+            current.whole && current.text.trim() ? h('button.fg-btn.is-small.is-ghost', {type: 'button', onclick: () => {
+                all[current.key] = Engine.fromInstructions(current.text).map(r => Object.assign(r, {auto: true}));
+                drawPane();
+                drawNav();
+            }}, icon('rotate', 'fg-i-sm'), t('lf_rebuild')) : null,
             rules.map((r, i) => h('section.fg-lf-rule', null,
                 h('div.fg-lf-rule-head', null, h('strong', null, t('rule_' + r.kind)),
-                    h('small.fg-muted', null, t('rule_' + r.kind + '_help')),
+                    r.auto ? h('span.fg-lf-tag', null, t('auto_fromrubric')) : null,
+                    h('small.fg-muted', null, r.config && r.config.label ? r.config.label : t('rule_' + r.kind + '_help')),
                     h('span.fg-grow'),
                     tip(h('button.fg-icon-btn.is-small', {type: 'button', onclick: () => {
                         rules.splice(i, 1);
@@ -191,21 +235,45 @@ export const open = (app, criteria, onsaved) => {
         wide: true,
         body: h('div.fg-lf', null,
             h('p.fg-small.fg-muted', null, t('lf_intro')),
-            h('label.fg-check', null, compliance, t('lf_compliance')),
+            sourceBox,
+            ctx.quiz ? null : h('label.fg-check', null, compliance, t('lf_compliance')),
             h('div.fg-lf-grid', null, nav, pane)),
         actions: [
             {label: t('cancel')},
             {label: t('save'), primary: true, onclick: async() => {
                 try {
                     let latest = null;
+                    if (sourcesChanged) {
+                        // New sources mean new ready-made checks: save only the choice and checks a marker wrote.
+                        const r = await Api.call('save_criteria', {cmid: app.cmid, kind: 'lookfors', data: {criterionkey: 'sources',
+                            rules: [{kind: 'sources', config: {terms: avail.filter(k => chosen.has(k))}}]}});
+                        latest = r.lookfors;
+                        for (const c of criteria) {
+                            if (!(all[c.key] || []).some(r => r.auto)) {
+                                continue;
+                            }
+                            const r2 = await Api.call('save_criteria', {cmid: app.cmid, kind: 'lookfors',
+                                data: {criterionkey: c.key, rules: []}});
+                            latest = r2.lookfors;
+                        }
+                        app.store.set({lookfors: latest || {}});
+                        toast(t('lf_saved'), {type: 'ok'});
+                        onsaved();
+                        return;
+                    }
+                    const plain = rules => (rules || []).filter(r => r.kind !== 'compliance')
+                        .map(r => ({kind: r.kind, config: r.config}));
+                    const comp = compliance.checked ? [{kind: 'compliance', config: {}}] : [];
                     for (const c of criteria) {
                         const r = await Api.call('save_criteria', {cmid: app.cmid, kind: 'lookfors',
-                            data: {criterionkey: c.key, rules: all[c.key] || []}});
+                            data: {criterionkey: c.key, rules: c.key === 'all' ? plain(all.all).concat(comp) : plain(all[c.key])}});
                         latest = r.lookfors;
                     }
-                    const r = await Api.call('save_criteria', {cmid: app.cmid, kind: 'lookfors', data: {criterionkey: 'all',
-                        rules: compliance.checked ? [{kind: 'compliance', config: {}}] : []}});
-                    latest = r.lookfors || latest;
+                    if (!criteria.some(c => c.key === 'all')) {
+                        const r = await Api.call('save_criteria', {cmid: app.cmid, kind: 'lookfors', data: {criterionkey: 'all',
+                            rules: comp}});
+                        latest = r.lookfors || latest;
+                    }
                     app.store.set({lookfors: latest || {}});
                     toast(t('lf_saved'), {type: 'ok'});
                     onsaved();

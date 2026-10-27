@@ -25,7 +25,10 @@ namespace local_fastgrade\local;
  */
 class lookfors {
     /** Rule kinds. */
-    const KINDS = ['term', 'anyof', 'pattern', 'mustnot', 'length', 'structure', 'threshold', 'keypoints', 'parts', 'compliance'];
+    const KINDS = [
+        'term', 'anyof', 'pattern', 'mustnot', 'length', 'structure', 'threshold', 'keypoints', 'parts', 'compliance',
+        'sources', 'ideas',
+    ];
 
     /**
      * Rules for an activity, grouped by criterion key.
