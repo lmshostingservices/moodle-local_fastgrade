@@ -148,15 +148,18 @@ class files {
      *
      * @param stored_file $file
      * @param string $docprefix 'file' or 'rfile'
+     * @param string|null $itempath item path for the URL when the file area needs more than the item id (quiz response
+     *     files are served as usage/slot/itemid)
      * @return array
      */
-    public static function export(stored_file $file, string $docprefix = 'file'): array {
+    public static function export(stored_file $file, string $docprefix = 'file', ?string $itempath = null): array {
         $kind = self::kind_of($file->get_filename());
+        $item = $itempath ?? $file->get_itemid();
         $url = \moodle_url::make_pluginfile_url(
             $file->get_contextid(),
             $file->get_component(),
             $file->get_filearea(),
-            $file->get_itemid(),
+            $item,
             $file->get_filepath(),
             $file->get_filename(),
             false
@@ -165,7 +168,7 @@ class files {
             $file->get_contextid(),
             $file->get_component(),
             $file->get_filearea(),
-            $file->get_itemid(),
+            $item,
             $file->get_filepath(),
             $file->get_filename(),
             true

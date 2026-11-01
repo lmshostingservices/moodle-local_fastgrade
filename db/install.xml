@@ -181,5 +181,26 @@
         <INDEX NAME="courseshared" UNIQUE="false" FIELDS="courseid, shared"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="local_fastgrade_aiimage" COMMENT="Results of optional AI image analysis through LMS Labs AI, kept so an image is never charged twice.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student whose image it is"/>
+        <FIELD NAME="fileid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="requestkey" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="sha256 of image, mode, task and criteria; also the LMS Labs request id"/>
+        <FIELD NAME="mode" TYPE="char" LENGTH="12" NOTNULL="true" DEFAULT="criteria" SEQUENCE="false" COMMENT="criteria or transcribe"/>
+        <FIELD NAME="resultjson" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="credits" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Credits charged"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Marker who asked"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cmkey" UNIQUE="false" FIELDS="cmid, requestkey"/>
+        <INDEX NAME="cmuser" UNIQUE="false" FIELDS="cmid, userid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

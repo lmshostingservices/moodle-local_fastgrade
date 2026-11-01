@@ -36,4 +36,16 @@
       <copyright>Princeton University</copyright>
     </copyrights>
   </library>
+  <library>
+    <location>thirdparty/computeengine</location>
+    <name>Compute Engine</name>
+    <description>Computer algebra used to check maths working step by step in the marker's browser.</description>
+    <version>0.30.2</version>
+    <license>MIT</license>
+    <licenseversion></licenseversion>
+    <repository>https://github.com/cortex-js/compute-engine</repository>
+    <copyrights>
+      <copyright>CortexJS</copyright>
+    </copyrights>
+  </library>
 </libraries>

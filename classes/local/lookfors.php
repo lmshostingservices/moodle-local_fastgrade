@@ -27,7 +27,7 @@ class lookfors {
     /** Rule kinds. */
     const KINDS = [
         'term', 'anyof', 'pattern', 'mustnot', 'length', 'structure', 'threshold', 'keypoints', 'parts', 'compliance',
-        'sources', 'ideas',
+        'sources', 'ideas', 'maths', 'photo',
     ];
 
     /**
@@ -77,6 +77,11 @@ class lookfors {
             'partiallevelid' => (int)($c['partiallevelid'] ?? 0),
             'score' => isset($c['score']) ? (float)$c['score'] : null,
         ];
+        if ($kind === 'maths') {
+            // The model answer is plain typed maths, for example "x = -1/2 or x = 3".
+            $config['answer'] = \core_text::substr(trim(clean_param((string)($c['answer'] ?? ''), PARAM_TEXT)), 0, 200);
+            $config['working'] = !empty($c['working']) ? 1 : 0;
+        }
         if ($kind === 'pattern' && isset($c['regex'])) {
             $regex = (string)$c['regex'];
             // Only accept patterns that compile, are short, and use no inline code.

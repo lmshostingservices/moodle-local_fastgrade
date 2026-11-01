@@ -210,6 +210,43 @@ export const groups = (app, items) => {
 };
 
 /**
+ * Group answers by their final maths answer, compared by value (so -1/2 and -0.5 are the same answer).
+ *
+ * @param {Object} app
+ * @param {Array} items corpus items
+ * @param {Object} maths checker
+ */
+export const mathsGroups = (app, items, maths) => {
+    const withtext = items.filter(i => i.text && i.text.trim());
+    const map = new Map();
+    withtext.forEach(i => {
+        const fk = maths.finalKey(i.text);
+        const key = fk ? fk.key : '';
+        if (!map.has(key)) {
+            map.set(key, {label: fk ? fk.label : t('maths_noanswer'), members: []});
+        }
+        map.get(key).members.push(i);
+    });
+    const gs = [...map.entries()].sort((a, b) => (a[0] === '') - (b[0] === '') || b[1].members.length - a[1].members.length);
+    const cur = app.store.get('current');
+    const body = h('div', null, h('p.fg-small.fg-muted', null, t('maths_groups_intro', {groups: gs.length, n: withtext.length})),
+        gs.map(([key, g]) => {
+            const incl = cur && g.members.some(m => m.key === cur.key);
+            return h('section.fg-group', null,
+                h('div.fg-auto-card-head', null, h('strong', null, g.label),
+                    h('span.fg-chip', null, t('maths_groups_n', g.members.length)),
+                    incl ? h('span.fg-chip.is-ok', null, t('groups_current')) : null),
+                h('div.fg-group-members', null, g.members.map(m => h('button.fg-chip-btn', {type: 'button',
+                    "class": m.graded ? 'is-done' : '', onclick: () => openItem(app, m)}, m.name, m.graded && m.gradedisplay ?
+                    ' · ' + m.gradedisplay : ''))),
+                incl && key ? tip(h('button.fg-btn.is-small.is-primary', {type: 'button',
+                    onclick: () => applyToGroup(app, g.members)}, icon('send', 'fg-i-sm'), t('groups_apply')),
+                    t('groups_apply_tip')) : null);
+        }));
+    Dialog.open({title: t('maths_groups'), wide: true, body, actions: [{label: t('done'), primary: true}]});
+};
+
+/**
  * Give every answer in a group the current mark and comment.
  *
  * @param {Object} app

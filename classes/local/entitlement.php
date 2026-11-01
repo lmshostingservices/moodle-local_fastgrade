@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <http://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace local_fastgrade\local;
 
@@ -85,8 +85,10 @@ class entitlement {
         $credentials = static::credentials();
         $fingerprint = hash('sha256', $CFG->wwwroot . "\0" . implode("\0", $credentials));
         $cached = $SESSION->local_fastgrade_entitlement ?? null;
-        if (is_array($cached) && ($cached['identity'] ?? '') === $fingerprint
-                && ($cached['expires'] ?? 0) > time()) {
+        if (
+            is_array($cached) && ($cached['identity'] ?? '') === $fingerprint
+                && ($cached['expires'] ?? 0) > time()
+        ) {
             return;
         }
         unset($SESSION->local_fastgrade_entitlement);

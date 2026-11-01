@@ -42,8 +42,19 @@ const KINDICON = {text: 'filetext', pdf: 'file', office: 'filetext', slides: 'sl
 export const TOOLS = [
     ['select', 'select', 'Esc'], ['area', 'area', 'Q'], ['pen', 'pen', 'D'], ['rect', 'rect', 'R'], ['ellipse', 'ellipse', 'O'],
     ['arrow', 'arrow', 'W'], ['text', 'text', 'T'], ['tick', 'check', '⇧ 1'], ['cross', 'x', '⇧ 2'], ['query', 'question', '⇧ 3'],
-    ['eraser', 'eraser', 'E'],
+    ['mark', 'stamp', 'L'], ['eraser', 'eraser', 'E'],
 ];
+
+/** Method and accuracy mark stamps, as used in maths marking. */
+export const MARKCODES = ['M1', 'A1', 'B1', 'ft', 'A0'];
+
+/**
+ * Value of a mark stamp.
+ *
+ * @param {string} code
+ * @returns {number}
+ */
+export const markValue = code => (code === 'A0' ? 0 : 1);
 
 export default class ViewerHost {
     /**
@@ -62,6 +73,7 @@ export default class ViewerHost {
         this.doc = null;
         this.tool = 'select';
         this.colour = 'amber';
+        this.markCode = 'M1';
         this.pollers = [];
     }
 
@@ -301,15 +313,41 @@ export default class ViewerHost {
             bits.push(h('div.fg-tools', {role: 'group', 'aria-label': t('drawingtools')}, TOOLS.map(([id, ic, key]) => tip(
                 h('button.fg-tool', {type: 'button', 'aria-pressed': String(this.tool === id), dataset: {tool: id},
                     onclick: () => this.setTool(id)}, icon(ic)), t('tool_' + id + '_tip'), key))));
-            bits.push(h('div.fg-colours', {role: 'radiogroup', 'aria-label': t('colour')}, ['amber', 'green', 'blue',
-                'ink'].map(c =>
+            bits.push(this.tool === 'mark' ? null : h('div.fg-colours', {role: 'radiogroup', 'aria-label': t('colour')}, ['amber',
+                'green', 'blue', 'ink'].map(c =>
                 tip(h('button.fg-swatch', {type: 'button', role: 'radio', 'aria-checked': String(this.colour === c),
                     "class": 'is-' + c, onclick: () => {
                         this.colour = c;
                         this.renderToolbar();
                     }}), t('colour_' + c)))));
         }
-        if (v && v.supportsMarks && !ro) {
+        if (v && v.supportsDrawing && !ro && this.tool === 'mark') {
+            bits.push(h('div.fg-markcodes', {role: 'radiogroup', 'aria-label': t('tool_mark')}, MARKCODES.map(code =>
+                tip(h('button.fg-markcode', {type: 'button', role: 'radio', 'aria-checked': String(this.markCode === code),
+                    "class": 'is-' + code.toLowerCase(), onclick: () => {
+                        this.markCode = code;
+                        this.renderToolbar();
+                    }}, code), t('markcode_' + code)))));
+        }
+        if (!this.markSub && this.app.annotations) {
+            this.markSub = this.app.annotations.on((reason, a) => {
+                if (a && a.type === 'stamp' && a.style && a.style.stamp === 'mark') {
+                    this.renderToolbar();
+                }
+            });
+        }
+        const total = this.app.annotations ? this.markTotal() : {n: 0, score: 0};
+        if (v && v.supportsDrawing && (this.tool === 'mark' || total.n)) {
+            const grade = document.getElementById('fg-grade-input');
+            bits.push(h('span.fg-marktotal', {'aria-live': 'polite'}, t('markstotal', total.score)));
+            if (grade && !ro && total.n) {
+                bits.push(tip(h('button.fg-btn.is-small', {type: 'button', onclick: () => {
+                    grade.value = String(total.score);
+                    grade.dispatchEvent(new Event('input', {bubbles: true}));
+                    toast(t('markstotal_used', total.score), {type: 'ok'});
+                }}, t('markstotal_use')), t('markstotal_use_tip')));
+            }
+        } else if (v && v.supportsMarks && !ro) {
             bits.push(h('span.fg-tb-hint', null, icon('info', 'fg-i-xs'), t('selecthint')));
         }
         bits.push(h('span.fg-grow'));
@@ -342,15 +380,35 @@ export default class ViewerHost {
     }
 
     /**
-     * Choose a drawing tool.
+     * Marks stamped on this student's work (M1, A1, B1 and ft count one each).
+     *
+     * @returns {Object} {n, score}
+     */
+    markTotal() {
+        const item = this.app.store.get('item');
+        const docs = new Set(((item && item.docs) || []).map(d => d.docref));
+        const marks = this.app.annotations.all().filter(a => a.type === 'stamp' && a.style && a.style.stamp === 'mark' &&
+            a.status !== 'suggested' && docs.has(a.docref));
+        return {n: marks.length, score: marks.reduce((sum, a) => sum + markValue(a.style.code), 0)};
+    }
+
+    /**
+     * Choose a tool. Choosing the mark stamp again moves to the next mark (M1, A1, B1, ft, A0).
      *
      * @param {string} id
      */
     setTool(id) {
+        if (id === 'mark' && this.tool === 'mark') {
+            this.markCode = MARKCODES[(MARKCODES.indexOf(this.markCode) + 1) % MARKCODES.length];
+        }
+        const changed = (id === 'mark') !== (this.tool === 'mark') || id === 'mark';
         this.tool = id;
         this.toolbar.querySelectorAll('.fg-tool').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === id)));
         if (this.viewer && this.viewer.setTool) {
             this.viewer.setTool(id);
+        }
+        if (changed) {
+            this.renderToolbar();
         }
     }
 

@@ -25,6 +25,13 @@
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
+    'local_fastgrade_analyse_images' => [
+        'classname' => 'local_fastgrade\\external\\analyse_images',
+        'description' => 'Optional AI image analysis through LMS Labs AI (uses LMS Labs credits).',
+        'type' => 'write',
+        'ajax' => true,
+        'loginrequired' => true,
+    ],
     'local_fastgrade_report_views' => [
         'classname' => 'local_fastgrade\\external\\report_views',
         'description' => 'List, save or delete saved report views.',

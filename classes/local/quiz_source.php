@@ -161,14 +161,8 @@ class quiz_source extends source {
             'coursename' => format_string($this->course->fullname, true, ['context' => $this->context]),
             'courseshortname' => format_string($this->course->shortname, true, ['context' => $this->context]),
             'activityurl' => (new \moodle_url('/mod/quiz/view.php', ['id' => $this->cm->id]))->out(false),
-            'classicurl' => (new \moodle_url(
-                '/mod/quiz/report.php',
-                [
-                    'id' => $this->cm->id,
-                    'mode' => 'grading',
-                    'classic' => 1,
-                ]
-            ))->out(false),
+            'classicurl' => (new \moodle_url('/mod/quiz/report.php', ['id' => $this->cm->id, 'mode' => 'grading', 'classic' => 1]))
+                ->out(false),
             'intro' => format_module_intro('quiz', $quiz, $this->cm->id),
             'gradetype' => 'point',
             'maxgrade' => 0,
@@ -408,7 +402,7 @@ class quiz_source extends source {
         }
         $files = $qa->get_last_qt_files('attachments', $ctxid);
         foreach ($files as $file) {
-            $docs[] = files::export($file, 'rfile');
+            $docs[] = files::export($file, 'rfile', $qa->get_usage_id() . '/' . $qa->get_slot() . '/' . $file->get_itemid());
         }
 
         $mark = $this->get_mark_record($userid, $attempt, $slot, (int)$qa->get_database_id());
@@ -749,7 +743,9 @@ class quiz_source extends source {
                 'attempt' => (int)$r->attemptid,
                 'slot' => (int)$r->slot,
                 'name' => $anon ? $this->alias((int)$r->userid) : ($u ? fullname($u) : ''),
-                'text' => trim(html_to_text((string)($answers[$r->qaid] ?? ''), 0, false)),
+                // Plain-text answers keep their line breaks (maths working is one step per line).
+                'text' => trim(strpos((string)($answers[$r->qaid] ?? ''), '<') === false ? (string)($answers[$r->qaid] ?? '') :
+                    html_to_text((string)$answers[$r->qaid], 0, false)),
                 'graded' => $graded,
                 'fraction' => $graded ? (float)$r->fraction : null,
                 'gradedisplay' => $graded ? format_float((float)$r->fraction * (float)$r->maxmark, 2, true, true) . ' / ' .

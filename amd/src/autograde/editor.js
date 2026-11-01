@@ -29,8 +29,10 @@ import * as Api from 'local_fastgrade/lib/api';
 import {toast} from 'local_fastgrade/ui/toast';
 import * as Engine from 'local_fastgrade/autograde/engine';
 import * as Synonyms from 'local_fastgrade/autograde/synonyms';
+import * as Maths from 'local_fastgrade/maths/engine';
 
-const KINDS = ['keypoints', 'ideas', 'anyof', 'term', 'parts', 'pattern', 'mustnot', 'length', 'structure', 'threshold'];
+const KINDS = ['keypoints', 'ideas', 'anyof', 'term', 'parts', 'maths', 'photo', 'pattern', 'mustnot', 'length', 'structure',
+    'threshold'];
 const PRESETS = ['citation', 'legislation', 'year', 'money', 'percent', 'number', 'url'];
 const STRUCT = ['references', 'headings', 'list'];
 
@@ -58,8 +60,87 @@ const blank = (kind, crit) => {
     } else if (kind === 'length') {
         config.min = 100;
         config.max = 0;
+    } else if (kind === 'photo') {
+        config.terms = Engine.splitPoints(crit.benchmark).slice(0, 8);
+        config.min = 0;
+    } else if (kind === 'maths') {
+        config.answer = '';
+        config.working = 1;
     }
     return {kind, config};
+};
+
+/**
+ * Copy text to the clipboard, falling back to selecting it.
+ *
+ * @param {string} text
+ * @param {HTMLElement} el
+ */
+const copy = async(text, el) => {
+    try {
+        await navigator.clipboard.writeText(text);
+        toast(t('copied'), {type: 'ok'});
+    } catch (e) {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+};
+
+/**
+ * Settings for the maths working check: the model answer, the student guide to copy into the question and a
+ * box to try typed working against the engine.
+ *
+ * @param {Object} app
+ * @param {Object} rule
+ * @returns {Array}
+ */
+const mathsBody = (app, rule) => {
+    const c = rule.config;
+    const out = h('ol.fg-maths-lines.is-test');
+    const sample = h('textarea.fg-input', {rows: 5, spellcheck: 'false', placeholder: t('maths_test_placeholder')});
+    const runTest = async() => {
+        let maths;
+        try {
+            maths = await Maths.load(app.boot.libs);
+        } catch (e) {
+            replace(out, h('li.is-unread', null, t('maths_unavailable')));
+            return;
+        }
+        const res = maths.checkText(sample.value, {answer: c.answer || ''});
+        replace(out, res.lines.length ? res.lines.map(l => h('li', {"class": 'is-' + l.verdict},
+            h('span.fg-maths-ic', {'aria-hidden': 'true'}, {ok: '✓', ft: 'ft', slip: '!', question: '?', unread: '…'}[l.verdict] ||
+                '·'), h('code', null, l.typed), h('small', null, t('maths_v_' + l.verdict)))) :
+            h('li.is-unread', null, t('maths_nolines')),
+        res.answer && res.answer.ok !== null ? h('li', {"class": res.answer.ok ? 'is-ok' : 'is-slip'},
+            h('span.fg-maths-ic', {'aria-hidden': 'true'}, res.answer.ok ? '✓' : '!'),
+            h('span', null, res.answer.ok ? t('maths_answer_ok') : t('maths_answer_wrong', res.answer.want))) : null);
+    };
+    const typedGuide = h('pre.fg-maths-guide', null, t('maths_guide_typed'));
+    const photoGuide = h('pre.fg-maths-guide', null, t('maths_guide_photo'));
+    return [
+        h('label.fg-field', null, h('span', null, t('maths_answer')),
+            h('input.fg-input', {type: 'text', value: c.answer || '', placeholder: 'x = -1/2 or x = 3', oninput: e => {
+                c.answer = e.target.value;
+            }}), h('small.fg-muted', null, t('maths_answer_help'))),
+        h('label.fg-check', null, h('input', {type: 'checkbox', checked: c.working !== 0, onchange: e => {
+            c.working = e.target.checked ? 1 : 0;
+        }}), h('span', null, t('maths_checkworking'))),
+        h('details.fg-maths-howto', {open: true}, h('summary', null, icon('help', 'fg-i-sm'), ' ', t('maths_guide_title')),
+            h('p.fg-small.fg-muted', null, t('maths_guide_intro')),
+            h('div.fg-maths-guides', null,
+                h('div', null, h('div.fg-maths-guide-head', null, h('strong', null, t('maths_guide_typed_title')),
+                    h('button.fg-btn.is-small', {type: 'button', onclick: () => copy(t('maths_guide_typed'), typedGuide)},
+                        icon('list', 'fg-i-sm'), t('copy'))), typedGuide),
+                h('div', null, h('div.fg-maths-guide-head', null, h('strong', null, t('maths_guide_photo_title')),
+                    h('button.fg-btn.is-small', {type: 'button', onclick: () => copy(t('maths_guide_photo'), photoGuide)},
+                        icon('list', 'fg-i-sm'), t('copy'))), photoGuide))),
+        h('details.fg-maths-howto', null, h('summary', null, icon('check', 'fg-i-sm'), ' ', t('maths_test_title')),
+            h('p.fg-small.fg-muted', null, t('maths_test_intro')), sample,
+            h('button.fg-btn.is-small', {type: 'button', onclick: runTest}, icon('wand', 'fg-i-sm'), t('maths_test_run')), out),
+    ];
 };
 
 /**
@@ -174,6 +255,12 @@ export const open = (app, criteria, onsaved, start, ctx = {}) => {
                 c.preset ? null : text(rule, 'regex', t('lf_regex'), '\\bAS/NZS \\d+')];
             case 'length':
                 return [h('div.fg-field-row', null, num(rule, 'min', t('lf_minwords')), num(rule, 'max', t('lf_maxwords')))];
+            case 'maths':
+                return mathsBody(app, rule);
+            case 'photo':
+                return [h('p.fg-small.fg-ai-note', null, icon('sparkle', 'fg-i-sm'), ' ',
+                    t('lf_photo_note', app.boot.aicredits || 2)),
+                    termsField(rule, t('lf_photo_terms'), t('lf_photo_help'), 4)];
             case 'structure':
                 return [h('div.fg-field-row', null, select(rule, 'preset', t('lf_needs'), STRUCT.map(p => [p, t('struct_' + p)])),
                     c.preset !== 'references' ? num(rule, 'min', t('lf_atleast')) : null)];
@@ -192,7 +279,8 @@ export const open = (app, criteria, onsaved, start, ctx = {}) => {
     const drawPane = () => {
         const rules = all[current.key] = (all[current.key] || []).filter(r => r.kind !== 'compliance');
         const addsel = h('select.fg-select.is-small', {'aria-label': t('lf_add')},
-            KINDS.filter(k => k !== 'threshold' || !rules.some(r => r.kind === 'threshold'))
+            KINDS.filter(k => (k !== 'threshold' || !rules.some(r => r.kind === 'threshold')) &&
+                (k !== 'photo' || (app.boot.aiimages && !rules.some(r => r.kind === 'photo'))))
                 .map(k => h('option', {value: k}, t('rule_' + k))));
         replace(pane,
             h('div.fg-lf-crittext', null, h('strong', null, current.label),

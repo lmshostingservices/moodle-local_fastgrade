@@ -73,10 +73,13 @@ export default class Rail {
 
         st.on('participants', () => this.render());
         st.on('current', () => this.markCurrent());
-        st.on('prefs', p => {
-            this.filtersel.value = p.filter;
-            this.sortsel.value = p.sort;
-        });
+        // Show the saved filter and sort from the start, not only after they change.
+        const syncPrefs = p => {
+            this.filtersel.value = FILTERS.includes(p.filter) ? p.filter : 'needsgrading';
+            this.sortsel.value = p.sort || 'name';
+        };
+        syncPrefs(st.get('prefs') || {});
+        st.on('prefs', syncPrefs);
         this.renderQuizBar();
     }
 

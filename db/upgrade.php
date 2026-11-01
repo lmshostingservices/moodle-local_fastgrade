@@ -65,5 +65,26 @@ function xmldb_local_fastgrade_upgrade($oldversion) {
         }
         upgrade_plugin_savepoint(true, 2026102604, 'local', 'fastgrade');
     }
+    if ($oldversion < 2026110200) {
+        $table = new xmldb_table('local_fastgrade_aiimage');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('cmid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fileid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('requestkey', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('mode', XMLDB_TYPE_CHAR, '12', null, XMLDB_NOTNULL, null, 'criteria');
+        $table->add_field('resultjson', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('credits', XMLDB_TYPE_INTEGER, '5', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('cmkey', XMLDB_INDEX_NOTUNIQUE, ['cmid', 'requestkey']);
+        $table->add_index('cmuser', XMLDB_INDEX_NOTUNIQUE, ['cmid', 'userid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+        upgrade_plugin_savepoint(true, 2026110200, 'local', 'fastgrade');
+    }
+
     return true;
 }

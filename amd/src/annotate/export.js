@@ -153,6 +153,14 @@ export const download = async(app, host) => {
                         });
                         break;
                     case 'stamp': {
+                        if ((a.style || {}).stamp === 'mark') {
+                            const code = String(a.style.code || 'M1');
+                            const tw = bold.widthOfTextAtSize(code, 10);
+                            page.drawRectangle({x: X(an.x) - tw / 2 - 4, y: Y(an.y) - 7, width: tw + 8, height: 14,
+                                borderColor: colour, borderWidth: 1.2, color: rgb(1, 1, 1), opacity: 0.9});
+                            page.drawText(code, {x: X(an.x) - tw / 2, y: Y(an.y) - 3.5, size: 10, font: bold, color: colour});
+                            break;
+                        }
                         const glyph = {tick: 'OK', cross: 'X', query: '?'}[(a.style || {}).stamp] || '*';
                         page.drawCircle({x: X(an.x), y: Y(an.y), size: 9, borderColor: colour, borderWidth: 1, color: rgb(1, 1, 1),
                             opacity: 0.85});

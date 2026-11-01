@@ -8,11 +8,11 @@
 //
 // Moodle is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle. If not, see <http://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace local_fastgrade;
 
@@ -28,7 +28,9 @@ use local_fastgrade\local\entitlement;
  * @covers     \local_fastgrade\local\entitlement
  */
 final class entitlement_test extends \advanced_testcase {
-    /** Configure a fictitious site; no customer credentials or live debit. */
+    /**
+     * Configure a fictitious site; no customer credentials or live debit.
+     */
     protected function setUp(): void {
         global $CFG, $SESSION;
         parent::setUp();
@@ -40,7 +42,11 @@ final class entitlement_test extends \advanced_testcase {
         unset($SESSION->local_fastgrade_entitlement);
     }
 
-    /** A verified purchase unlocks and caches only a credential-bound fingerprint. */
+    /**
+
+     * A verified purchase unlocks and caches only a credential-bound fingerprint.
+
+     */
     public function test_verified_access_and_cache(): void {
         global $SESSION;
         \curl::mock_response('{"unlocked":true,"entitlementSource":"purchase"}');
@@ -51,7 +57,11 @@ final class entitlement_test extends \advanced_testcase {
         $this->assertCount(2, $SESSION->local_fastgrade_entitlement);
     }
 
-    /** A denied result is not cached and a subsequent verified purchase works. */
+    /**
+
+     * A denied result is not cached and a subsequent verified purchase works.
+
+     */
     public function test_locked_then_unlocked(): void {
         global $SESSION;
         \curl::mock_response('{"unlocked":false,"credits":500}');
@@ -67,7 +77,11 @@ final class entitlement_test extends \advanced_testcase {
         $this->assertTrue(isset($SESSION->local_fastgrade_entitlement));
     }
 
-    /** Changing credentials invalidates a successful verification. */
+    /**
+
+     * Changing credentials invalidates a successful verification.
+
+     */
     public function test_credentials_change_invalidates_cache(): void {
         \curl::mock_response('{"unlocked":true}');
         entitlement::require_access();
@@ -77,7 +91,11 @@ final class entitlement_test extends \advanced_testcase {
         entitlement::require_access();
     }
 
-    /** A cloned Moodle URL must not inherit the original site's cached access. */
+    /**
+
+     * A cloned Moodle URL must not inherit the original site's cached access.
+
+     */
     public function test_site_change_invalidates_cache(): void {
         global $CFG;
         \curl::mock_response('{"unlocked":true}');
@@ -88,7 +106,11 @@ final class entitlement_test extends \advanced_testcase {
         entitlement::require_access();
     }
 
-    /** Expired access requires fresh confirmation, not a permanent unlock flag. */
+    /**
+
+     * Expired access requires fresh confirmation, not a permanent unlock flag.
+
+     */
     public function test_expired_cache(): void {
         global $SESSION;
         \curl::mock_response('{"unlocked":true}');
@@ -99,14 +121,22 @@ final class entitlement_test extends \advanced_testcase {
         entitlement::require_access();
     }
 
-    /** Optional credentials do not grant access when missing. */
+    /**
+
+     * Optional credentials do not grant access when missing.
+
+     */
     public function test_missing_credentials(): void {
         set_config('apikey', '', 'local_fastgrade');
         $this->expectException(\moodle_exception::class);
         entitlement::require_access();
     }
 
-    /** Malformed provider replies and truthy strings must fail closed. */
+    /**
+
+     * Malformed provider replies and truthy strings must fail closed.
+
+     */
     public function test_invalid_responses(): void {
         foreach (['not-json', 'null', '[]', '{"unlocked":"true"}', '{"success":true}'] as $response) {
             \curl::mock_response($response);
@@ -119,7 +149,11 @@ final class entitlement_test extends \advanced_testcase {
         }
     }
 
-    /** Even a site administrator must have a verified entitlement to open the grader. */
+    /**
+
+     * Even a site administrator must have a verified entitlement to open the grader.
+
+     */
     public function test_grading_entry_requires_unlock(): void {
         $course = $this->getDataGenerator()->create_course();
         $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
@@ -129,7 +163,11 @@ final class entitlement_test extends \advanced_testcase {
         \local_fastgrade\local\source::for_cmid($cm->id)->require_grade_access();
     }
 
-    /** AJAX activity access cannot bypass the same entitlement check. */
+    /**
+
+     * AJAX activity access cannot bypass the same entitlement check.
+
+     */
     public function test_ajax_entry_requires_unlock(): void {
         $course = $this->getDataGenerator()->create_course();
         $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);

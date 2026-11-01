@@ -32,6 +32,9 @@ import * as Editor from 'local_fastgrade/autograde/editor';
 import * as Bench from 'local_fastgrade/autograde/bench';
 import * as Dialog from 'local_fastgrade/ui/dialog';
 import * as Loader from 'local_fastgrade/lib/loader';
+import * as Maths from 'local_fastgrade/maths/engine';
+import {hasEquation} from 'local_fastgrade/maths/check';
+import * as Photo from 'local_fastgrade/autograde/photo';
 
 const SOURCES = ['instructions', 'attachments', 'grading', 'otherforms', 'graderinfo', 'question', 'template', 'wordlimit'];
 
@@ -40,6 +43,48 @@ const VERBS = new RegExp('^(identifies|describes|explains|applies|discusses|outl
     'compares|evaluates|analyses|analyzes|justifies|includes|selects|develops|recommends|states|defines|summarises|' +
     'summarizes)\\b', 'i');
 
+
+/**
+ * Share of the marks for checked maths working. A criterion about method or working is judged on the steps
+ * (follow-through counts), one about accuracy or the answer on the final answer, and anything else on both, with
+ * method credit when the answer is wrong.
+ *
+ * @param {Object} ch result of the maths check
+ * @param {string} text criterion wording
+ * @returns {number} 0..1
+ */
+export const mathsShare = (ch, text) => {
+    const working = ch.steps ? (ch.steps - ch.slips) / ch.steps : 0;
+    const answer = ch.answer && ch.answer.ok ? 1 : (ch.answer && ch.answer.partial) || 0;
+    const known = ch.answer && ch.answer.ok !== null;
+    if (/\b(method|working|workings|steps?|process|approach|M\d?)\b/i.test(text || '')) {
+        return ch.steps ? working : answer;
+    }
+    if (/\b(accura\w*|answers?|final|results?|correct\w*|A\d?)\b/i.test(text || '')) {
+        return known ? answer : working;
+    }
+    if (!known) {
+        return working;
+    }
+    if (answer >= 1) {
+        return ch.slips ? 0.85 : 1;
+    }
+    return Math.max(0.6 * working, answer * 0.75);
+};
+
+/**
+ * Why a line of working does not follow, in words.
+ *
+ * @param {Object} l checked line
+ * @returns {string}
+ */
+const mathsReason = l => {
+    if (l.reason === 'changed') {
+        return t('maths_slip_changed', {from: l.from || '∅', to: l.to || '∅'});
+    }
+    const known = ['notequal', 'deriv_bad', 'value_bad', 'range_changed', 'sys_bad', 'int_bad', 'defint_bad'];
+    return t('maths_slip_' + (known.includes(l.reason) ? l.reason : 'notequal'));
+};
 
 /**
  * Plain text with one line per block (paragraph, list item, heading), so list steps stay apart.
@@ -89,6 +134,9 @@ const praise = p => (VERBS.test(p) ? 'You ' + lower(advise(p)) : p).replace(/[.\
  * @returns {string}
  */
 const needText = n => {
+    if (n.kind === 'maths' || n.kind === 'mathsanswer') {
+        return n.advice || '';
+    }
     if (n.kind === 'length') {
         return t('auto_m_length', {want: n.label || (n.max ? n.min + '–' + n.max : n.min) + ' words', n: n.detail});
     }
@@ -274,7 +322,11 @@ export default class AutoTab {
     lookfors(item) {
         const saved = this.app.store.get('lookfors') || {};
         const out = Object.assign({}, saved);
-        this.criteria(item).forEach(c => {
+        const crits = this.criteria(item);
+        // A maths task (an equation in the question or brief) is checked by the maths engine, not by wording.
+        const mathsTask = hasEquation(item.question ? item.question.text : crits.filter(c => c.whole).map(c => c.text).join('\n'));
+        const mathsRule = () => ({kind: 'maths', config: {answer: '', working: 1, label: ''}, auto: true});
+        crits.forEach(c => {
             if ((out[c.key] || []).length) {
                 return;
             }
@@ -290,7 +342,16 @@ export default class AutoTab {
                 if (!item.question) {
                     rules.push({kind: 'compliance', config: {}, auto: true});
                 }
-                out[c.key] = rules;
+                // A question or brief with an equation in it gets the maths working check, ready to go, in place of
+                // checks drawn from its wording (only word limits still apply).
+                out[c.key] = mathsTask ? [...rules.filter(r => r.kind === 'length'), mathsRule()] : rules;
+                return;
+            }
+            if (mathsTask) {
+                // Rubric, marking guide or question criteria on a maths task are judged on the working and the answer.
+                const levels = c.levels ? [...c.levels].sort((x, y) => x.score - y.score) : [];
+                out[c.key] = [mathsRule(), ...(levels.length ? [{kind: 'threshold', config: {levelid: levels[levels.length - 1].id,
+                    partiallevelid: levels[Math.floor((levels.length - 1) / 2)].id}, auto: true}] : [])];
                 return;
             }
             if (!c.benchmark.trim()) {
@@ -304,6 +365,12 @@ export default class AutoTab {
                 {kind: 'threshold', config: levels.length ? {levelid: levels[levels.length - 1].id,
                     partiallevelid: levels[Math.floor((levels.length - 1) / 2)].id} : {}, auto: true}];
         });
+        // Check the working once: when criteria carry the maths check, the whole-answer check leaves it out.
+        if (mathsTask && crits.some(c => !c.whole && (out[c.key] || []).some(r => r.kind === 'maths'))) {
+            crits.filter(c => c.whole && (out[c.key] || []).every(r => r.auto)).forEach(c => {
+                out[c.key] = (out[c.key] || []).filter(r => r.kind !== 'maths');
+            });
+        }
         return out;
     }
 
@@ -369,7 +436,10 @@ export default class AutoTab {
         } else if (!configured.length) {
             replace(this.out, h('div.fg-empty-small', null, can ? t('auto_empty_can') : t('auto_empty')));
         }
-        return h('section.fg-auto', null, head, status, this.out);
+        const crits = this.criteria(item);
+        const photo = Photo.block(this, item, hasEquation(item.question ? item.question.text :
+            crits.filter(c => c.whole).map(c => c.text).join('\n')));
+        return h('section.fg-auto', null, head, status, photo, this.out);
     }
 
     /**
@@ -568,6 +638,16 @@ export default class AutoTab {
             pages.forEach(pg => Engine.lawCheck(pg.text).filter(l => l.level === 'warn').forEach(l =>
                 lawWarns.push(Object.assign({page: pg.page}, l))));
         }
+        const hasMaths = Object.values(lookfors).some(rules => (rules || []).some(r => r.kind === 'maths'));
+        this.mathsSeen = new Set();
+        let maths = null;
+        if (hasMaths) {
+            try {
+                maths = await Maths.load(app.boot.libs);
+            } catch (e) {
+                maths = null;
+            }
+        }
         const suggest = (page, start, end, polarity, comment, criterionid) => {
             if (start < 0) {
                 return;
@@ -629,6 +709,7 @@ export default class AutoTab {
                 }
             }
             res.notes = [...merged.values()];
+            rules.filter(r => r.kind === 'maths').forEach(r => this.mathsCheck(r, c, pages, res, maths, suggest));
             // Slides: a criterion about speaker notes is measured by how many slides have them.
             const v2 = app.viewer.viewer;
             if (!c.whole && v2 && v2.slideNotes && v2.slideNotes.length && /\bnotes\b/i.test(c.text + ' ' + c.benchmark)) {
@@ -757,6 +838,10 @@ export default class AutoTab {
      * @returns {number}
      */
     share(r) {
+        // Checked maths working decides its criterion on its own.
+        if (r.maths) {
+            return mathsShare(r.maths, this.mathsCritText(r.crit));
+        }
         // A direct measure (speaker notes on slides) decides its criterion on its own.
         const measure = r.notes.find(n => n.measure);
         if (measure) {
@@ -824,7 +909,7 @@ export default class AutoTab {
         results.forEach(r => {
             const share = this.share(r);
             // Word limits and layout matter less than whether the content is there.
-            const weight = r.crit.whole && results.length > 1 ? 0.25 : 1;
+            const weight = r.crit.whole && results.length > 1 && !r.maths ? 0.25 : 1;
             total += share * weight;
             count += weight;
             const good = r.points.filter(p => p.status === 'covered').map(p => p.point)
@@ -883,12 +968,15 @@ export default class AutoTab {
         const q = item.question;
         if (q && count) {
             const share = total / count;
+            const mathsRes = results.find(r => r.maths);
             if (q.criteria && q.criteria.length) {
                 q.criteria.forEach(c => {
                     const f = st.filling.get(c.id) || {criterionid: c.id, remark: ''};
                     st.filling.set(c.id, f);
                     if (f.score === '' || f.score === null || f.score === undefined) {
-                        f.score = Math.round(share * c.maxscore * 2) / 2;
+                        // Maths: a "Method" criterion gets the working, an "Accuracy" one the answer.
+                        const cs = mathsRes ? mathsShare(mathsRes.maths, c.description) : share;
+                        f.score = Math.round(cs * c.maxscore * 2) / 2;
                         auto.levels.push(c.id);
                         filled++;
                     }
@@ -986,6 +1074,92 @@ export default class AutoTab {
     }
 
     /**
+     * Wording that says what a criterion measures: a rubric or guide criterion's description, but only the name of
+     * a quiz question (its text is the question, not a criterion).
+     *
+     * @param {Object} crit
+     * @returns {string}
+     */
+    mathsCritText(crit) {
+        return this.item && this.item.question ? '' : (crit.label || '') + ' ' + (crit.text || '');
+    }
+
+    /**
+     * Check typed maths working with the maths engine and place suggestions on the lines.
+     *
+     * @param {Object} rule
+     * @param {Object} crit
+     * @param {Array} pages
+     * @param {Object} res
+     * @param {Object|null} maths
+     * @param {Function} suggest
+     */
+    mathsCheck(rule, crit, pages, res, maths, suggest) {
+        const cfg = rule.config || {};
+        if (!maths) {
+            res.notes.push({kind: 'maths', ok: false, label: t('maths_unavailable')});
+            return;
+        }
+        const item = this.item;
+        // The equation comes from the question, or from the assignment brief (the whole-submission criterion's text).
+        const brief = (this.criteria(item).find(c => c.whole) || {}).text || '';
+        const question = item.question ? item.question.text : (crit.whole ? crit.text : brief) || '';
+        let answer = cfg.answer || '';
+        if (!answer && item.question && item.question.graderinfo) {
+            const fk = maths.finalKey(linesOf(item.question.graderinfo));
+            answer = fk ? fk.label : '';
+        }
+        let best = null;
+        pages.forEach(pg => {
+            const ch = maths.checkText(pg.text, {answer, question});
+            if (ch.lines.length && (!best || ch.lines.length > best.ch.lines.length)) {
+                best = {pg, ch};
+            }
+        });
+        if (!best) {
+            res.notes.push({kind: 'maths', ok: false, label: t('maths_nolines')});
+            return;
+        }
+        const {pg, ch} = best;
+        const once = (start, end, polarity, comment) => {
+            const k = pg.page + ':' + start + ':' + polarity;
+            if (!this.mathsSeen.has(k)) {
+                this.mathsSeen.add(k);
+                suggest(pg.page, start, end, polarity, comment, crit.id);
+            }
+        };
+        ch.lines.forEach(l => {
+            if (l.verdict === 'slip') {
+                once(l.start, l.end, 'improvement', mathsReason(l));
+            } else if (l.verdict === 'unread') {
+                once(l.start, l.end, 'neutral', t('maths_unread'));
+            }
+        });
+        const first = ch.lines.find(l => ['ok', 'ft', 'slip'].includes(l.verdict));
+        if (first && !ch.slips && ch.steps) {
+            once(first.start, first.end, 'positive', t('maths_allsteps', ch.steps));
+        }
+        if (ch.answer && ch.answer.ok !== null) {
+            const a = ch.answer;
+            once(a.line.start, a.line.end, a.ok ? 'positive' : 'improvement',
+                a.ok ? t('maths_answer_ok') : t('maths_answer_wrong', a.want));
+        }
+        res.maths = ch;
+        // Method and accuracy: working that follows (including follow-through) earns part of the credit even when
+        // the final answer is wrong.
+        if (cfg.working !== 0) {
+            const good = ch.steps - ch.slips;
+            res.notes.push({kind: 'maths', ok: ch.steps > 0 && !ch.slips, ratio: ch.steps ? good / ch.steps : 0,
+                label: '', detail: t('maths_detail', {ok: good, steps: ch.steps}),
+                advice: ch.slips ? t('maths_m_working') : ''});
+        }
+        if (ch.answer && ch.answer.ok !== null) {
+            res.notes.push({kind: 'mathsanswer', ok: ch.answer.ok, label: '', detail: ch.answer.have,
+                advice: ch.answer.ok ? '' : t('maths_m_answer')});
+        }
+    }
+
+    /**
      * Results summary.
      */
     renderResults() {
@@ -996,7 +1170,9 @@ export default class AutoTab {
         const info = this.app.store.get('info');
         const blocks = results.map(r => {
             const pct = r.total ? r.met / r.total : 0;
-            const state = r.total && r.met === r.total ? 'met' : (r.met > 0 ? 'partial' : 'none');
+            const mshare = r.maths ? mathsShare(r.maths, this.mathsCritText(r.crit)) : null;
+            const state = r.maths ? (mshare >= 1 ? 'met' : (mshare > 0 ? 'partial' : 'none')) :
+                (r.total && r.met === r.total ? 'met' : (r.met > 0 ? 'partial' : 'none'));
             let apply = null;
             if (r.threshold && r.crit.id && !this.item.question) {
                 const cfg = r.threshold.config;
@@ -1014,7 +1190,8 @@ export default class AutoTab {
             return h('section.fg-auto-card', {"class": 'is-' + state},
                 h('div.fg-auto-card-head', null, h('strong', null, r.crit.label),
                     h('span.fg-chip', {"class": state === 'met' ? 'is-ok' : (state === 'partial' ? 'is-amber' : 'is-muted')},
-                        t('auto_state_' + state, {met: r.met, total: r.total}))),
+                        r.maths ? t('maths_state_' + state, Math.round(mshare * 100)) :
+                            t('auto_state_' + state, {met: r.met, total: r.total}))),
                 r.notes.length ? h('ul.fg-auto-list', null, r.notes.map(n => h('li', {"class": n.ok ? 'is-ok' : 'is-miss'},
                     icon(n.ok ? 'check' : 'x', 'fg-i-xs'), h('span', null, t('rule_' + n.kind) + (n.label ? ': ' + n.label : '')),
                     n.detail ? h('small', null, n.detail) : null))) : null,
@@ -1026,6 +1203,11 @@ export default class AutoTab {
                     h('ul.fg-auto-list', null, r.parts.map(p => h('li', {"class": p.ok ? 'is-ok' : 'is-miss'},
                         icon(p.ok ? 'check' : 'x', 'fg-i-xs'), h('span', null, p.label),
                         h('small', null, p.ok ? t('answered') : t('notanswered')))))) : null,
+                r.maths && r.maths.lines.length ? h('div.fg-auto-points', null, h('div.fg-small.fg-muted', null,
+                    t('maths_working')), h('ol.fg-maths-lines', null, r.maths.lines.map(l => h('li', {"class": 'is-' + l.verdict},
+                    h('span.fg-maths-ic', {'aria-hidden': 'true'}, {ok: '✓', ft: 'ft', slip: '!', question: '?', unread: '…',
+                        unchecked: '·'}[l.verdict] || '·'),
+                    h('code', null, l.typed), h('small', null, t('maths_v_' + l.verdict)))))) : null,
                 h('div.fg-row-actions', null, apply, tip(h('button.fg-btn.is-small.is-ghost', {type: 'button',
                     onclick: () => this.acceptAll(r.crit.id)}, icon('check', 'fg-i-sm'), t('auto_acceptall')),
                         t('auto_acceptall_tip'))));
@@ -1117,6 +1299,17 @@ export default class AutoTab {
         } catch (e) {
             toast(Api.message(e), {type: 'error'});
             return;
+        }
+        const lf = this.lookfors(this.item);
+        const usesMaths = Object.values(lf).some(rules => (rules || []).some(r => r.kind === 'maths'));
+        if (usesMaths) {
+            try {
+                const maths = await Maths.load(app.boot.libs);
+                Bench.mathsGroups(app, corpus.items, maths);
+                return;
+            } catch (e) {
+                // Fall back to grouping by wording.
+            }
         }
         Bench.groups(app, corpus.items);
     }

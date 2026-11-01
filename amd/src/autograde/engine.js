@@ -606,7 +606,7 @@ const stepLabel = step => {
     }
     // Cut after 7 words, but not on a small word ("…with a").
     const cut = w.slice(0, 7);
-    const small = /^(a|an|the|of|with|and|or|to|for|in|on|at|by|from|that|each|your|their|its)$/i;
+    const small = /^(a|an|the|of|with|and|or|so|but|to|for|in|on|at|by|from|that|each|your|their|its)$/i;
     while (cut.length > 3 && small.test(cut[cut.length - 1])) {
         cut.pop();
     }

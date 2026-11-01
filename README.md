@@ -29,7 +29,11 @@ Fast Grade requires a one-time 50-credit unlock or an existing site purchase. Th
 
 The marker reviews, edits and approves the draft. Nothing reaches a student until it is approved.
 
+**Maths marking (no AI).** A built-in maths engine checks typed working line by line, flags the first step that does not follow, credits follow-through and checks the final answer by value. It covers equations, indices, logs, surds, the quadratic formula, differentiation, inequalities, simultaneous equations and integration. Criteria about method are judged on the working and criteria about accuracy on the answer. Photographed working is marked with M1, A1, B1, ft and A0 stamps that add up to the grade. The engine is CortexJS Compute Engine (MIT), bundled and run in the marker's browser.
+
 **Download all submissions.** Download the whole assignment, or one quiz essay question, as a ZIP. Choose the latest version only or every version, with one folder per student.
+
+**Optional AI photo checks (LMS Labs credits).** Off by default. When a site turns it on and a teacher adds a Photo check (AI) to a criterion, a marker can ask LMS Labs AI whether each photo shows what the criterion asks for, or have it type out handwritten maths working for the maths engine to check. 2 LMS Labs credits per photo; the marker confirms the cost every time and approves every result.
 
 **Integrations.** Fast Grade shows EssayGuard and DocGuard results when those plugins are installed. It adds marking metrics and reports to Beacon (2.10 or later).
 

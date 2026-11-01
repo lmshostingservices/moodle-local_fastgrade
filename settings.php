@@ -202,6 +202,41 @@ if ($hassiteconfig) {
             )
         );
 
+        // Optional AI image analysis through LMS Labs AI. Off by default; the rest of Fast Grade uses no AI.
+        $aidesc = get_string('settings_ai_desc', $c, \local_fastgrade\local\aiimage::CREDITS);
+        if (optional_param('section', '', PARAM_ALPHANUMEXT) === 'local_fastgrade') {
+            $aidesc = \local_fastgrade\local\aiimage::status_html() . $aidesc;
+        }
+        $settings->add(new admin_setting_heading("$c/ai", get_string('settings_ai', $c), $aidesc));
+        $settings->add(
+            new admin_setting_configcheckbox(
+                "$c/aiimages",
+                get_string('aiimages', $c),
+                get_string('aiimages_desc', $c, \local_fastgrade\local\aiimage::CREDITS),
+                0
+            )
+        );
+        $settings->add(
+            new admin_setting_configcheckbox(
+                "$c/aiimages_consent",
+                get_string('aiimages_consent', $c),
+                get_string('aiimages_consent_desc', $c),
+                0
+            )
+        );
+        $settings->add(
+            new admin_setting_configselect(
+                "$c/aiimages_age",
+                get_string('aiimages_age', $c),
+                get_string('aiimages_age_desc', $c),
+                'under18',
+                [
+                    'under18' => get_string('aiimages_age_under18', $c),
+                    'adult' => get_string('aiimages_age_adult', $c),
+                ]
+            )
+        );
+
         $settings->add(
             new admin_setting_heading(
                 "$c/reporting",

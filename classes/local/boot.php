@@ -49,6 +49,8 @@ class boot {
             'autograde' => get_config('local_fastgrade', 'autograde') === false ? true :
                 (bool)get_config('local_fastgrade', 'autograde'),
             'precedents' => (bool)get_config('local_fastgrade', 'precedents'),
+            'aiimages' => \local_fastgrade\local\aiimage::enabled(),
+            'aicredits' => \local_fastgrade\local\aiimage::CREDITS,
             'checksources' => self::check_sources(),
             'libs' => [
                 'pdfjs' => $base . '/pdfjs/pdf.min.js',
@@ -58,6 +60,7 @@ class boot {
                 'wasm' => $base . '/pdfjs/wasm/',
                 'iccs' => $base . '/pdfjs/iccs/',
                 'pdflib' => $base . '/pdflib/pdf-lib.min.js',
+                'mathengine' => $base . '/computeengine/compute-engine.min.esm.js',
             ],
             'strings' => $strings,
         ];

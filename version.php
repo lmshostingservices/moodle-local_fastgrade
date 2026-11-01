@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_fastgrade';
-$plugin->version   = 2026102704;
-$plugin->release   = '1.1.1';
+$plugin->version   = 2026110200;
+$plugin->release   = '1.3.0';
 $plugin->requires  = 2024042200; // Moodle 4.4.
 $plugin->supported = [404, 503];
 $plugin->maturity  = MATURITY_STABLE;

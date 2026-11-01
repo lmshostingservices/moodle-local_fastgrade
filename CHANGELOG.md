@@ -2,6 +2,61 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
+## [v1.3.0] - 2026-11-02
+
+### Maths marking (no AI)
+
+- More topics checked line by line: inequalities (including quadratic inequalities, and a flagged slip when the sign is not flipped after dividing by a negative), simultaneous equations (two linear equations, or a line and a curve, with follow-through after a substitution slip) and integration (indefinite integrals checked by differentiating back, definite integrals checked by value). Trigonometric identities and proofs are not checked yet; those lines show Not checked.
+- Final answers for simultaneous equations are read across lines ("y = 2" then "x = 3"), and Similar answers groups them by their (x, y) pairs.
+- The student guide now shows how to type integrals, inequalities and simultaneous equations.
+
+### Fixes
+
+- The student list's filter now shows the saved choice when the marking screen opens. Before, it could show "Needs marking" while the list was filtered by an older choice such as Marked, so the list looked empty ("Nothing matches").
+
+### Optional AI photo checks (LMS Labs credits)
+
+Everything above still works without AI. This is an optional extra, off by default.
+
+- Photo check (AI): a teacher adds it to a criterion in Set up checks and lists what the photo should show (for example "Salmon in the centre of the plate"). In the marking screen, a marker presses Check photos with AI, sees the cost and confirms. LMS Labs AI suggests, for each criterion, whether the photo shows each thing, with its evidence and one thing to improve. A Use level button fills the rubric level only when the marker presses it.
+- Read the working with AI: for a maths question, LMS Labs AI types out handwritten working exactly as written, and the maths engine (no AI) checks every line.
+- Cost: 2 LMS Labs credits per photo, using the same Site ID and API key as the other LMS Labs plugins. Results are kept, so the same photo and criteria are never charged twice. A photo that cannot be checked is not charged.
+- Settings: step-by-step instructions, a green "Connected to LMS Labs AI" light with the credit balance, a permission box that must be ticked before anything is sent, and the learners' ages (default: some under 18).
+- Privacy: only the photo (resized, with location and camera data removed), the task and the criteria are sent; no names or user IDs. Results are covered by the Moodle privacy API and deleted with the activity.
+
+## [v1.2.0] - 2026-11-01
+
+### Maths marking (no AI)
+
+- Maths working check: a built-in maths engine (computer algebra, running in the marker's browser) reads typed working one line at a time and checks that each line follows from the line before. The first line that does not follow is flagged in amber with the reason, and later lines that follow on from it are credited as follow-through.
+- Final answers are checked by value, so x = -1/2, x = -0.5 and "x = 3, x = -1/2" are all the same answer. Equations, factorising, fractions, indices, logarithms, surds, the quadratic formula (with ±), differentiation are covered.
+- Ready to go: a quiz question or assignment brief with an equation in it gets the maths check automatically. The expected answer comes from the equation itself, or from the grader information, or from a model answer you type.
+- Works with your criteria: rubric, marking guide and question criteria about method or working are judged on the steps, and criteria about accuracy or the answer on the final answer. Suggested levels and scores fill in for you to check.
+- Final answers: Similar answers on a maths question groups students by their final answer, so you can mark each different answer once.
+- Mark stamps for photographed working: stamp M1, A1, B1, ft or A0 on each line of a photo or scan. Fast Grade finds the lines of writing on the page (plain image processing, no AI), places each stamp at the end of the line, adds up the marks and puts the total in the grade box when you choose. Press L for the stamp tool, and L again for the next mark.
+- How students should submit their working: copyable instructions for typed working and for photos, and a box to try typed working against the engine, in Set up checks.
+
+### Fixes
+
+- Photos and files attached to quiz essay answers now open in the marking screen (they could fail to load).
+- Similar answers keeps the line breaks in plain-text quiz answers.
+- Similar answers also groups differentiation answers by their gradient value.
+
+## [v1.1.2] - 2026-10-27
+
+### Theme compatibility
+
+- Buttons, tabs and icons now look the same in every theme. Some themes (Academi, for example) style every button and its hover state site-wide, which left white text on a white background when you hovered. Fast Grade's own styles now take priority over theme button and link styles.
+- Hovering no longer changes text colour. Hovers only add a light background tint, a border or an underline, so text stays readable in any theme and in dark mode.
+- Keyboard focus shows a clear blue outline on every Fast Grade button and link.
+
+### Fixes
+
+- Leader lines point to the right line when the commented text wraps over several lines.
+- Positive and neutral suggested cells in spreadsheets use green and blue outlines instead of amber.
+- Rule titles in the Live feedback panel no longer wrap mid-title.
+- Auto-marking no longer ends a part label on a small word such as "so" or "but".
+
 ## [v1.1.1] - 2026-10-27
 
 ### Site access

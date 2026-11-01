@@ -213,8 +213,11 @@ export default class Cards {
                 return;
             }
             const parts = el.children.length && el instanceof SVGGElement ? [...el.children] : [el];
-            parts.forEach(n => {
-                const r = n.getBoundingClientRect();
+            // Inline text marks wrap over several lines: take each line's own box, not the box around all of them.
+            const boxes = [];
+            parts.forEach(n => boxes.push(...(n.getClientRects && n.getClientRects().length ? n.getClientRects() :
+                [n.getBoundingClientRect()])));
+            boxes.forEach(r => {
                 if (!r.width && !r.height) {
                     return;
                 }

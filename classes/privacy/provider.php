@@ -105,6 +105,24 @@ class provider implements
             'privacy:metadata:note'
         );
         $c->add_database_table(
+            'local_fastgrade_aiimage',
+            [
+                'userid' => 'privacy:metadata:aiimage:userid',
+                'usermodified' => 'privacy:metadata:aiimage:usermodified',
+                'resultjson' => 'privacy:metadata:aiimage:resultjson',
+            ],
+            'privacy:metadata:aiimage'
+        );
+        $c->add_external_location_link(
+            'lms_labs_ai',
+            [
+                'image' => 'privacy:metadata:lmslabsai:image',
+                'task' => 'privacy:metadata:lmslabsai:task',
+                'criteria' => 'privacy:metadata:lmslabsai:criteria',
+            ],
+            'privacy:metadata:lmslabsai'
+        );
+        $c->add_database_table(
             'local_fastgrade_lookfor',
             ['usermodified' => 'privacy:metadata:usermodified'],
             'privacy:metadata:lookfor'
@@ -146,7 +164,8 @@ class provider implements
                   JOIN {course_modules} cm ON cm.id = ctx.instanceid AND ctx.contextlevel = :lvl
                  WHERE cm.id IN (SELECT cmid FROM {local_fastgrade_mark} WHERE userid = :u1 OR markerid = :u2)
                     OR cm.id IN (SELECT cmid FROM {local_fastgrade_annot} WHERE authorid = :u3)
-                    OR cm.id IN (SELECT cmid FROM {local_fastgrade_note} WHERE userid = :u4 OR authorid = :u5)";
+                    OR cm.id IN (SELECT cmid FROM {local_fastgrade_note} WHERE userid = :u4 OR authorid = :u5)
+                    OR cm.id IN (SELECT cmid FROM {local_fastgrade_aiimage} WHERE userid = :u6 OR usermodified = :u7)";
         $list->add_from_sql(
             $sql,
             [
@@ -156,6 +175,8 @@ class provider implements
                 'u3' => $userid,
                 'u4' => $userid,
                 'u5' => $userid,
+                'u6' => $userid,
+                'u7' => $userid,
             ]
         );
         $list->add_from_sql(
@@ -195,6 +216,8 @@ class provider implements
         $userlist->add_from_sql('markerid', 'SELECT markerid FROM {local_fastgrade_mark} WHERE cmid = :cmid', $p);
         $userlist->add_from_sql('authorid', 'SELECT authorid FROM {local_fastgrade_annot} WHERE cmid = :cmid', $p);
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_fastgrade_note} WHERE cmid = :cmid', $p);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_fastgrade_aiimage} WHERE cmid = :cmid', $p);
+        $userlist->add_from_sql('usermodified', 'SELECT usermodified FROM {local_fastgrade_aiimage} WHERE cmid = :cmid', $p);
     }
 
     /**
@@ -268,11 +291,26 @@ class provider implements
                 ];
             }
             $note = $DB->get_record('local_fastgrade_note', ['cmid' => $cmid, 'userid' => $userid]);
+            $ai = $DB->get_records(
+                'local_fastgrade_aiimage',
+                ['cmid' => $cmid, 'userid' => $userid],
+                'id',
+                'id, mode, resultjson, timecreated'
+            );
+            $aiout = [];
+            foreach ($ai as $r) {
+                $aiout[] = [
+                    'mode' => $r->mode,
+                    'result' => json_decode($r->resultjson, true),
+                    'time' => transform::datetime($r->timecreated),
+                ];
+            }
             writer::with_context($ctx)->export_data(
                 [get_string('pluginname', 'local_fastgrade')],
                 (object)[
                     'marking' => $out,
                     'note' => $note ? $note->note : '',
+                    'aiimages' => $aiout,
                 ]
             );
         }
@@ -323,6 +361,7 @@ class provider implements
         $DB->delete_records('local_fastgrade_annot', ['cmid' => $cmid]);
         $DB->delete_records('local_fastgrade_mark', ['cmid' => $cmid]);
         $DB->delete_records('local_fastgrade_note', ['cmid' => $cmid]);
+        $DB->delete_records('local_fastgrade_aiimage', ['cmid' => $cmid]);
     }
 
     /**
@@ -376,6 +415,8 @@ class provider implements
             $DB->delete_records_select('local_fastgrade_mark', "id $min", $mp);
         }
         $DB->delete_records_select('local_fastgrade_note', "cmid = :cmid AND userid $in", $p);
+        $DB->delete_records_select('local_fastgrade_aiimage', "cmid = :cmid AND userid $in", $p);
+        $DB->set_field_select('local_fastgrade_aiimage', 'usermodified', 0, "cmid = :cmid AND usermodified $in", $p);
         $DB->set_field_select('local_fastgrade_mark', 'markerid', 0, "cmid = :cmid AND markerid $in", $p);
         $DB->set_field_select('local_fastgrade_annot', 'authorid', 0, "cmid = :cmid AND authorid $in", $p);
         $DB->set_field_select('local_fastgrade_note', 'authorid', 0, "cmid = :cmid AND authorid $in", $p);

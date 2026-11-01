@@ -63,7 +63,7 @@ class observer {
             "markid IN (SELECT id FROM {local_fastgrade_mark} WHERE cmid $in)",
             $params
         );
-        foreach (['annot', 'mark', 'lookfor', 'qcrit', 'note', 'view'] as $t) {
+        foreach (['annot', 'mark', 'lookfor', 'qcrit', 'note', 'view', 'aiimage'] as $t) {
             $DB->delete_records_select('local_fastgrade_' . $t, "cmid $in", $params);
         }
     }

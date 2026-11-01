@@ -29,9 +29,12 @@ import * as Loader from 'local_fastgrade/lib/loader';
 import * as TA from 'local_fastgrade/annotate/textanchor';
 import Annotator from 'local_fastgrade/annotate/controller';
 import * as Api from 'local_fastgrade/lib/api';
+import {findLines, spotAt} from 'local_fastgrade/maths/lines';
 
 const COLOURS = {amber: '#d97706', green: '#22c65e', blue: '#0e88ff', ink: '#1f2937'};
 const POLCOLOUR = {improvement: '#d97706', positive: '#22c65e', neutral: '#0e88ff'};
+/** Mark stamp colours: dark enough to read as small text on paper. */
+const MARKCOLOUR = {M1: '#15803d', A1: '#15803d', B1: '#15803d', ft: '#0a63c4', A0: '#b45309'};
 const STAMPS = {
     tick: 'M-7 0l5 5 10-11',
     cross: 'M-6-6l12 12M6-6l-12 12',
@@ -156,8 +159,11 @@ export default class PdfViewer {
         const text = h('div.textLayer');
         const svg = s('svg', {"class": 'fg-page-svg', viewBox: `0 0 ${w} ${hgt}`, preserveAspectRatio: 'none'});
         const draw = s('svg', {"class": 'fg-page-draw', viewBox: `0 0 ${w} ${hgt}`, preserveAspectRatio: 'none'});
-        el.append(canvas, text, svg, draw, h('span.fg-page-num', {'aria-hidden': 'true'}, String(n)));
-        return {n, w, h: hgt, page, el, canvas, text, svg, draw, rendered: 0, task: null, textReady: false};
+        const guides = s('svg', {"class": 'fg-page-guides', viewBox: `0 0 ${w} ${hgt}`, preserveAspectRatio: 'none',
+            'aria-hidden': 'true'});
+        el.append(canvas, text, guides, svg, draw, h('span.fg-page-num', {'aria-hidden': 'true'}, String(n)));
+        return {n, w, h: hgt, page, el, canvas, text, svg, draw, guides, lines: null, rendered: 0, task: null,
+            textReady: false};
     }
 
     /**
@@ -269,6 +275,9 @@ export default class PdfViewer {
             p.canvas.style.height = hh + 'px';
             p.rendered = this.scale;
             p.stale = false;
+            if (this.tool === 'mark') {
+                this.findPageLines(p);
+            }
             if (this.annotator && this.annotator.cards) {
                 this.annotator.cards.drawLinks();
             }
@@ -591,6 +600,61 @@ export default class PdfViewer {
         this.tool = tool;
         this.el.dataset.tool = tool;
         window.getSelection().removeAllRanges();
+        if (tool === 'mark') {
+            this.pages.forEach(p => this.findPageLines(p));
+        }
+    }
+
+    /**
+     * Find the lines of writing on a page (photos and scans of working), once, and draw faint guides.
+     *
+     * @param {Object} p
+     */
+    findPageLines(p) {
+        if (p.lines || (!this.image && !p.rendered)) {
+            return;
+        }
+        const cw = Math.round(p.w);
+        const ch = Math.round(p.h);
+        const off = document.createElement('canvas');
+        off.width = cw;
+        off.height = ch;
+        const ctx = off.getContext('2d', {willReadFrequently: true});
+        try {
+            ctx.drawImage(this.image || p.canvas, 0, 0, cw, ch);
+            p.lines = findLines(ctx.getImageData(0, 0, cw, ch));
+        } catch (e) {
+            p.lines = [];
+        }
+        off.width = 0;
+        replace(p.guides, p.lines.map(l => {
+            const pad = 5;
+            const y = (x, base) => base + x * l.slope;
+            return s('polygon', {"class": 'fg-guide', points: [[l.x0 - pad, y(l.x0, l.y0) - pad], [l.x1 + pad, y(l.x1, l.y0) - pad],
+                [l.x1 + pad, y(l.x1, l.y1) + pad], [l.x0 - pad, y(l.x0, l.y1) + pad]].map(pt => pt.join(',')).join(' ')});
+        }));
+    }
+
+    /**
+     * Where a mark stamp goes for a click: at the end of the line of working that was clicked, after any stamps
+     * already there, or where the click was if no line was found there.
+     *
+     * @param {Object} p
+     * @param {number} x
+     * @param {number} y
+     * @returns {Array} [x, y]
+     */
+    markSpot(p, x, y) {
+        // Just after the end of the writing at the height clicked; where there is no writing, where clicked.
+        const spot = spotAt(p.lines, x, y);
+        if (!spot) {
+            return [x, y];
+        }
+        const k = Math.max(1, p.w / 640);
+        const already = this.app.annotations.forDoc(this.docref).filter(a => a.page === p.n && a.type === 'stamp' &&
+            a.style && a.style.stamp === 'mark' && Math.abs(a.anchor.y - spot[1]) < 10 * k && a.anchor.x >= spot[0]).length;
+        const ax = Math.min(p.w - 22 * k, spot[0] + 24 * k + already * 36 * k);
+        return [ax, spot[1]];
     }
 
     /**
@@ -629,6 +693,14 @@ export default class PdfViewer {
             if (hit) {
                 this.annotator.remove(this.app.annotations.get(hit));
             }
+            return;
+        }
+        if (tool === 'mark') {
+            const code = this.host.markCode || 'M1';
+            const [mx, my] = this.markSpot(p, x0, y0);
+            this.app.annotations.create({docref: this.docref, page: p.n, type: 'stamp',
+                polarity: code === 'A0' ? 'improvement' : (code === 'ft' ? 'neutral' : 'positive'),
+                anchor: {x: mx, y: my}, style: {stamp: 'mark', code, colour: MARKCOLOUR[code]}});
             return;
         }
         if (['tick', 'cross', 'query'].includes(tool)) {
@@ -855,6 +927,20 @@ export default class PdfViewer {
                 }
                 break;
             case 'stamp':
+                if (st.stamp === 'mark') {
+                    const code = String(st.code || 'M1');
+                    const mw = 12 + code.length * 8;
+                    // Photos are wide in page units; keep the stamp the size of the writing.
+                    const pg = this.pages[(a.page || 1) - 1];
+                    const k = pg ? Math.max(1, pg.w / 640) : 1;
+                    const mg = s('g', {transform: `translate(${an.x} ${an.y}) rotate(-4) scale(${k})`});
+                    mg.appendChild(s('rect', {x: -mw / 2, y: -10, width: mw, height: 20, rx: 4, fill: '#fff', 'fill-opacity': 0.9,
+                        stroke: MARKCOLOUR[code] || col, 'stroke-width': 1.8}));
+                    mg.appendChild(s('text', {x: 0, y: 5, 'text-anchor': 'middle', fill: MARKCOLOUR[code] || col, 'font-size': 13,
+                        'font-weight': 700, 'font-family': 'system-ui, sans-serif'}, code));
+                    g.appendChild(mg);
+                    break;
+                }
                 g.appendChild(s('circle', {cx: an.x, cy: an.y, r: 11, fill: '#fff', 'fill-opacity': 0.85, stroke: col,
                     'stroke-width': 1.2}));
                 g.appendChild(s('path', {d: STAMPS[st.stamp] || STAMPS.tick, transform: `translate(${an.x} ${an.y})`, stroke: col,

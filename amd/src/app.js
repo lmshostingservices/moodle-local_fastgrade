@@ -202,7 +202,8 @@ class App {
                 return false;
             }
             switch (prefs.filter) {
-                case 'needsgrading': return p.needsgrading;
+                // Same rule as the row's status: submitted and not yet graded counts as needing marking.
+                case 'needsgrading': return p.needsgrading || (p.submitted && !p.graded && !p.hasdraft);
                 case 'submitted': return p.submitted;
                 case 'notsubmitted': return !p.submitted;
                 case 'graded': return p.graded;
