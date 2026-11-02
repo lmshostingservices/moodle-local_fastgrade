@@ -2,6 +2,13 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
+## [v1.4.0] - 2026-11-03
+
+### Works with the LMS Labs Premium SaaS theme
+
+- Gradebook button in the top bar: back to the course gradebook in one click.
+- Satisfactory / Not Yet Satisfactory buttons under the grade box for points grades: Satisfactory gives full marks, Not Yet Satisfactory gives zero. The chosen button stays highlighted.
+
 ## [v1.3.0] - 2026-11-02
 
 ### Maths marking (no AI)

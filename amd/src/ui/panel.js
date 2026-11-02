@@ -387,6 +387,7 @@ export default class Panel {
             bits.push(h('div.fg-muted.fg-small', null, info.method === 'rubric' ? t('rubricgrade_note') : t('guidegrade_note')));
         } else if (info.gradetype === 'point') {
             bits.push(this.pointInput(info.maxgrade, 0, info.maxgrade));
+            bits.push(this.snysButtons(info.maxgrade));
         } else if (info.gradetype === 'scale') {
             bits.push(h('div.fg-scale', {role: 'radiogroup', 'aria-label': t('grade')}, info.scaleitems.map((s, i) => {
                 const on = String(st.grade) === String(s.value);
@@ -405,6 +406,29 @@ export default class Panel {
                 (item.gradestate.grader ? ' · ' + item.gradestate.grader : '')));
         }
         replace(this.summary, bits);
+    }
+
+    /**
+     * Satisfactory / Not Yet Satisfactory buttons: full marks or zero in one click.
+     *
+     * @param {number} max
+     * @returns {HTMLElement}
+     */
+    snysButtons(max) {
+        const st = this.state;
+        const set = v => {
+            st.grade = fmt(v);
+            this.reviewed('grade');
+            this.changed();
+            this.renderBody();
+        };
+        const cur = st.grade === '' ? null : parseFloat(String(st.grade).replace(',', '.'));
+        const mk = (cls, label, letter, v, on) => tip(h('button.fg-snys.' + cls + (on ? '.is-on' : ''), {type: 'button',
+            'aria-pressed': String(on), onclick: () => set(v)}, h('span.fg-snys-dot', null, letter), h('span.fg-snys-label', null, label)),
+            t(cls === 'is-s' ? 'snys_s_tip' : 'snys_nys_tip', fmt(v)));
+        return h('div.fg-snys-row', {role: 'group', 'aria-label': t('snys_group')},
+            mk('is-s', t('snys_s'), 'S', max, cur !== null && cur === max),
+            mk('is-nys', t('snys_nys'), 'NYS', 0, cur !== null && cur === 0));
     }
 
     /**

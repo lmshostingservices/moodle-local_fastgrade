@@ -70,6 +70,7 @@ export default class Topbar {
         const right = h('div.fg-top-right', null,
             this.progress,
             this.save,
+            tip(h('a.fg-btn.is-ghost.is-small.fg-gradebook', {href: info.gradebookurl}, t('gradebook')), t('gradebook_tip')),
             tip(h('a.fg-btn.is-ghost.is-small.fg-classic', {href: info.classicurl}, t('classicgrader')), t('classicgrader_tip')),
             iconButton('chart', t('report_open_tip'), '', () => window.open(app.boot.wwwroot + '/local/fastgrade/report.php?id=' +
                 app.cmid, '_blank')),
