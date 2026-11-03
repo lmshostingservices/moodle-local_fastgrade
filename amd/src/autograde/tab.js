@@ -906,7 +906,9 @@ export default class AutoTab {
         const improve = [];
         let total = 0;
         let count = 0;
-        results.forEach(r => {
+        // A criterion checked only by a Photo check is left to the marker (and the AI suggestion): the text rules
+        // cannot see a photo, so they would wrongly fill "Not shown yet" and the lowest level.
+        results.filter(r => !this.photoOnly(r)).forEach(r => {
             const share = this.share(r);
             // Word limits and layout matter less than whether the content is there.
             const weight = r.crit.whole && results.length > 1 && !r.maths ? 0.25 : 1;
@@ -1142,7 +1144,7 @@ export default class AutoTab {
         if (ch.answer && ch.answer.ok !== null) {
             const a = ch.answer;
             once(a.line.start, a.line.end, a.ok ? 'positive' : 'improvement',
-                a.ok ? t('maths_answer_ok') : t('maths_answer_wrong', a.want));
+                a.ok ? t('maths_answer_ok') : (a.want ? t('maths_answer_wrong', a.want) : t('maths_answer_check')));
         }
         res.maths = ch;
         // Method and accuracy: working that follows (including follow-through) earns part of the credit even when
@@ -1160,6 +1162,17 @@ export default class AutoTab {
     }
 
     /**
+     * Whether a criterion is checked only by a Photo check (AI), so the text rules have nothing to say about it.
+     *
+     * @param {Object} r a result
+     * @returns {boolean}
+     */
+    photoOnly(r) {
+        const rules = (this.lookfors(this.item)[r.crit.key] || []).filter(x => x.kind !== 'threshold');
+        return rules.length > 0 && rules.every(x => x.kind === 'photo');
+    }
+
+    /**
      * Results summary.
      */
     renderResults() {
@@ -1168,7 +1181,8 @@ export default class AutoTab {
             return;
         }
         const info = this.app.store.get('info');
-        const blocks = results.map(r => {
+        // Photo-only criteria are shown by the Photo check card, not as an empty text result.
+        const blocks = results.filter(r => !this.photoOnly(r)).map(r => {
             const pct = r.total ? r.met / r.total : 0;
             const mshare = r.maths ? mathsShare(r.maths, this.mathsCritText(r.crit)) : null;
             const state = r.maths ? (mshare >= 1 ? 'met' : (mshare > 0 ? 'partial' : 'none')) :

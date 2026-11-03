@@ -41,7 +41,6 @@ class boot {
             'modname' => $source->get_cm()->modname,
             'courseid' => (int)$source->get_course()->id,
             'courseurl' => (new \moodle_url('/course/view.php', ['id' => $source->get_course()->id]))->out(false),
-            'gradebookurl' => (new \moodle_url('/grade/report/grader/index.php', ['id' => $source->get_course()->id]))->out(false),
             'startuserid' => $userid,
             'startslot' => $slot,
             'wwwroot' => $CFG->wwwroot,

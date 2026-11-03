@@ -2,12 +2,21 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
-## [v1.4.0] - 2026-11-03
+## [v1.4.1] - 2026-11-04
 
-### Works with the LMS Labs Premium SaaS theme
+### Release
 
-- Gradebook button in the top bar: back to the course gradebook in one click.
-- Satisfactory / Not Yet Satisfactory buttons under the grade box for points grades: Satisfactory gives full marks, Not Yet Satisfactory gives zero. The chosen button stays highlighted.
+- New Moodle version number (2026110400) so the release pipeline accepts it as newer than the build already promoted as v1.4.0 (2026110300). Includes every change listed under v1.3.1.
+
+## [v1.3.1] - 2026-11-03
+
+### Fixes
+
+- Photo check (AI): the buttons and the cost question now read naturally for one photo ("Check the photo with AI", "Send 1 photo for 2 credits?") instead of "1 photo(s)".
+- Photo check (AI): a negative credit balance from LMS Labs is treated as unknown and is no longer shown as "-1 credits left".
+- Photo check (AI): a performance criterion checked only by a Photo check is no longer auto-filled from the text rules. Before, a photo submission had "Not shown yet" and the lowest level pre-filled on those criteria, even after using the AI's suggested level. Now they are left for the marker and the AI suggestion, and the Auto tab no longer shows an empty "Not found (0/0)" text result for them.
+- Photo check (AI): the results panel no longer cuts off text on the right in a narrow marking pane; each item's evidence wraps under it.
+- Tested against the live LMS Labs AI service with photos from bricklaying, hairdressing, welding, early childhood and aged care practicals.
 
 ## [v1.3.0] - 2026-11-02
 
@@ -20,6 +29,7 @@ All notable changes to the Fast Grade (local_fastgrade) plugin are documented he
 ### Fixes
 
 - The student list's filter now shows the saved choice when the marking screen opens. Before, it could show "Needs marking" while the list was filtered by an older choice such as Marked, so the list looked empty ("Nothing matches").
+- A wrong final answer with no single expected value (an inequality or an integral) now says "Check the final answer." instead of ending with an empty "The expected answer is .". A correct integral after an earlier slip is shown as correct, not as follow-through.
 
 ### Optional AI photo checks (LMS Labs credits)
 

@@ -88,11 +88,13 @@ export const block = (tab, item, mathsTask) => {
     const each = app.boot.aicredits || 2;
     const body = h('div.fg-ai-body');
     const status = h('p.fg-small.fg-ai-status', {role: 'status'});
+    // Singular wording for one photo, plural for more.
+    const n = (key, a) => photos.length === 1 ? t(key + '_one', a) : t(key, a);
     const keyOf = mode => cur.key + '|' + mode + '|' + photos.map(p => p.fileid).join(',');
 
     const showStatus = st => {
         replace(status, h('span.fg-ai-light', {"class": st.connected ? 'is-on' : 'is-off', 'aria-hidden': 'true'}),
-            st.connected ? (st.balance !== null && st.balance !== undefined ? t('ai_connected_balance', st.balance) :
+            st.connected ? (typeof st.balance === 'number' && st.balance >= 0 ? t('ai_connected_balance', st.balance) :
                 t('ai_connected')) : t('ai_notconnected_light'));
     };
     Api.call('analyse_images', {cmid: app.cmid, userid: cur.person.id, fileids: '', mode: 'status'})
@@ -100,7 +102,7 @@ export const block = (tab, item, mathsTask) => {
 
     const run = async(mode, btn) => {
         btn.disabled = true;
-        replace(body, h('p.fg-small.fg-muted', null, icon('rotate', 'fg-i-xs'), ' ', t('ai_working', photos.length)));
+        replace(body, h('p.fg-small.fg-muted', null, icon('rotate', 'fg-i-xs'), ' ', n('ai_working', photos.length)));
         try {
             const res = await Api.call('analyse_images', {cmid: app.cmid, userid: cur.person.id,
                 fileids: photos.map(p => p.fileid).join(','), mode,
@@ -109,7 +111,7 @@ export const block = (tab, item, mathsTask) => {
                 criteriajson: JSON.stringify(crits.map(c => ({id: c.id, label: c.label, lookfor: c.lookfor})))});
             kept.set(keyOf(mode), res);
             await draw(mode, res);
-            if (res.balance !== null && res.balance !== undefined) {
+            if (typeof res.balance === 'number' && res.balance >= 0) {
                 showStatus({connected: true, balance: res.balance});
             }
             toast(res.credits ? t('ai_done_charged', res.credits) : t('ai_done_free'), {type: 'ok'});
@@ -131,7 +133,7 @@ export const block = (tab, item, mathsTask) => {
                 return;
             }
             btn.dataset.confirm = '1';
-            replace(btn, icon('sparkle', 'fg-i-sm'), t('ai_confirm', {n: photos.length, credits: photos.length * each}));
+            replace(btn, icon('sparkle', 'fg-i-sm'), n('ai_confirm', {n: photos.length, credits: photos.length * each}));
             btn.classList.add('is-primary');
             setTimeout(() => {
                 if (btn.dataset.confirm) {
@@ -223,8 +225,8 @@ export const block = (tab, item, mathsTask) => {
     };
 
     const actions = h('div.fg-row-actions', null,
-        tip(costButton('criteria', t('ai_analyse', photos.length)), t('ai_analyse_tip', each)),
-        mathsTask ? tip(costButton('transcribe', t('ai_transcribe', photos.length)), t('ai_transcribe_tip', each)) : null);
+        tip(costButton('criteria', n('ai_analyse', photos.length)), t('ai_analyse_tip', each)),
+        mathsTask ? tip(costButton('transcribe', n('ai_transcribe', photos.length)), t('ai_transcribe_tip', each)) : null);
     const card = h('section.fg-auto-card.fg-ai', null,
         h('div.fg-auto-card-head', null, h('strong', null, icon('sparkle', 'fg-i-sm'), ' ', t('ai_title')),
             h('span.fg-chip.is-muted', null, t('ai_cost', each))),

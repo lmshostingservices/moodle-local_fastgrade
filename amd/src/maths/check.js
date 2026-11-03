@@ -626,7 +626,9 @@ export const checker = ce => {
                     value: cur});
                 slipped = true;
             } else {
-                out.push({verdict: slipped ? 'ft' : 'ok', reason, value: cur});
+                // An integral is checked on its own, so it is right whatever came before it.
+                const own = cur.type === 'indefint' || cur.type === 'defint';
+                out.push({verdict: slipped && !own ? 'ft' : 'ok', reason, value: cur});
             }
             prev = cur;
         });

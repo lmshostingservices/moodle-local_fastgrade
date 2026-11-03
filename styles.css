@@ -5155,58 +5155,30 @@
     margin: 0;
 }
 
-/* Satisfactory / Not Yet Satisfactory quick buttons (LMS Labs green and magenta). */
-.fg-root .fg-snys-row {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-    flex-wrap: wrap;
+/* Photo check results: item, then its evidence on the next line, so nothing is cut off in a narrow panel. */
+:not(#fg-shield) .fg-ai-body {
+    min-width: 0;
 }
-.fg-root button.fg-snys {
-    --c: #24c45f;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 14px 5px 5px;
-    border: 0;
-    border-radius: 999px;
-    background: #fff !important;
-    color: var(--c) !important;
-    box-shadow: inset 0 0 0 1.5px var(--c) !important;
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
-    transition: box-shadow .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
+:not(#fg-shield) .fg-ai-body .fg-auto-card {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
-.fg-root .fg-snys.is-nys {
-    --c: #c8007f;
+:not(#fg-shield) .fg-ai-crit .fg-auto-card-head {
+    align-items: flex-start;
 }
-.fg-root .fg-snys .fg-snys-dot {
-    display: inline-grid;
-    place-items: center;
-    min-width: 28px;
-    height: 28px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: var(--c) !important;
-    color: #fff !important;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: .02em;
+:not(#fg-shield) .fg-ai-crit .fg-auto-card-head strong {
+    flex: 1;
+    min-width: 0;
 }
-.fg-root .fg-snys:hover {
-    transform: translateY(-1px);
-    box-shadow: inset 0 0 0 1.5px var(--c), 0 8px 18px -10px var(--c);
+:not(#fg-shield) .fg-ai-crit .fg-auto-card-head .fg-chip {
+    flex: none;
 }
-.fg-root .fg-snys.is-on {
-    background: var(--c) !important;
-    color: #fff !important;
+:not(#fg-shield) .fg-ai-crit .fg-auto-list li {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 2px 6px;
 }
-.fg-root .fg-snys.is-on .fg-snys-dot {
-    background: #fff !important;
-    color: var(--c) !important;
-}
-.fg-root .fg-snys:focus-visible {
-    outline: 2px solid var(--c);
-    outline-offset: 2px;
+:not(#fg-shield) .fg-ai-crit .fg-auto-list li small {
+    grid-column: 2;
+    white-space: normal;
 }

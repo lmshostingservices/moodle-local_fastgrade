@@ -116,7 +116,8 @@ const mathsBody = (app, rule) => {
             h('li.is-unread', null, t('maths_nolines')),
         res.answer && res.answer.ok !== null ? h('li', {"class": res.answer.ok ? 'is-ok' : 'is-slip'},
             h('span.fg-maths-ic', {'aria-hidden': 'true'}, res.answer.ok ? '✓' : '!'),
-            h('span', null, res.answer.ok ? t('maths_answer_ok') : t('maths_answer_wrong', res.answer.want))) : null);
+            h('span', null, res.answer.ok ? t('maths_answer_ok') :
+                (res.answer.want ? t('maths_answer_wrong', res.answer.want) : t('maths_answer_check')))) : null);
     };
     const typedGuide = h('pre.fg-maths-guide', null, t('maths_guide_typed'));
     const photoGuide = h('pre.fg-maths-guide', null, t('maths_guide_photo'));

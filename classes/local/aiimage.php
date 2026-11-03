@@ -135,7 +135,8 @@ class aiimage {
         [$code, $data] = static::post('/api/ai/status', ['feature' => 'image-analysis'], 15);
         $out = [
             'connected' => $code === 200 && !empty($data['connected']),
-            'balance' => isset($data['balance']) ? (int)$data['balance'] : null,
+            // A negative balance from LMS Labs means unknown, so it is not shown.
+            'balance' => isset($data['balance']) && (int)$data['balance'] >= 0 ? (int)$data['balance'] : null,
             'credits' => isset($data['creditsPerImage']) ? (int)$data['creditsPerImage'] : self::CREDITS,
             'code' => $code,
         ];
@@ -273,7 +274,7 @@ class aiimage {
         ]);
         \cache::make('local_fastgrade', 'aistatus')->delete('status');
         return $res + ['credits' => (int)($data['creditsCharged'] ?? self::CREDITS), 'cached' => false,
-            'balance' => isset($data['balance']) ? (int)$data['balance'] : null];
+            'balance' => isset($data['balance']) && (int)$data['balance'] >= 0 ? (int)$data['balance'] : null];
     }
 
     /**
