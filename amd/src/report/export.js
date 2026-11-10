@@ -146,7 +146,7 @@ export const print = app => {
     const tabs = app.tabs().map(x => x[0]).filter(k => !['students', 'pivot'].includes(k));
     const doc = h('div.fg-rp-print', {'aria-hidden': 'true'},
         h('section.fg-rp-cover', null,
-            h('p.fg-rp-cover-brand', null, 'Fast Grade'),
+            h('p.fg-rp-cover-brand', null, t('pluginname')),
             h('h1', null, app.meta.name),
             h('p', null, t('rp_subtitle', {course: app.meta.course, time: new Date().toLocaleString()})),
             h('p', null, t('rp_showing', {n: app.current.length, total: app.all.length}) + ' · ' +

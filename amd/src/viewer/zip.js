@@ -23,6 +23,7 @@
 
 import {h, icon, replace} from 'local_fastgrade/lib/dom';
 import {t} from 'local_fastgrade/lib/str';
+import {loadFileData} from 'local_fastgrade/viewer/filedata';
 
 export default class ZipViewer {
     /**
@@ -43,8 +44,7 @@ export default class ZipViewer {
      * Load.
      */
     async load() {
-        const res = await fetch(this.doc.dataurl + '&type=zip', {credentials: 'same-origin'});
-        const data = await res.json();
+        const data = await loadFileData(this.doc, 'zip');
         if (data.error) {
             throw new Error(data.error);
         }

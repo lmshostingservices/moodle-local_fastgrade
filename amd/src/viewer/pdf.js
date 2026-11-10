@@ -30,6 +30,7 @@ import * as TA from 'local_fastgrade/annotate/textanchor';
 import Annotator from 'local_fastgrade/annotate/controller';
 import * as Api from 'local_fastgrade/lib/api';
 import {findLines, spotAt} from 'local_fastgrade/maths/lines';
+import {loadFileData} from 'local_fastgrade/viewer/filedata';
 
 const COLOURS = {amber: '#d97706', green: '#22c65e', blue: '#0e88ff', ink: '#1f2937'};
 const POLCOLOUR = {improvement: '#d97706', positive: '#22c65e', neutral: '#0e88ff'};
@@ -1246,12 +1247,11 @@ export default class PdfViewer {
      * Slide notes for PowerPoint files.
      */
     async loadNotes() {
-        if (!this.doc.dataurl) {
+        if (!this.doc.hasdata) {
             return;
         }
         try {
-            const res = await fetch(this.doc.dataurl + '&type=notes', {credentials: 'same-origin'});
-            const data = await res.json();
+            const data = await loadFileData(this.doc, 'notes');
             this.slideNotes = (data.notes || []).map(n => String(n || ''));
             if (!data.notes || !data.notes.some(n => n && n.trim())) {
                 return;

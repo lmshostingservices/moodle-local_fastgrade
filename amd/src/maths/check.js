@@ -24,6 +24,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {t} from 'local_fastgrade/lib/str';
+
 const SAMPLES = [0.37, 1.91, 2.63, -1.27, 3.71, 0.83];
 const RANGE = 60;
 const STEPS = 24000;
@@ -776,7 +778,8 @@ export const checker = ce => {
                     return {key: v.set.map(x => x.toFixed(4)).join('|'), label: label(v.set), set: v.set};
                 }
                 if (v.type === 'gradat') {
-                    return {key: 'g' + v.at + ':' + v.value.toFixed(4), label: `dy/dx = ${fmt([v.value])} at x = ${v.at}`};
+                    return {key: 'g' + v.at + ':' + v.value.toFixed(4),
+                        label: t('maths_gradientat', {value: fmt([v.value]), at: v.at})};
                 }
                 if (v.type === 'expr' && /^\s*=/.test(lines[i].typed) && Number.isFinite(v.f(0.37)) &&
                         Math.abs(v.f(0.37) - v.f(1.91)) < 1e-9) {

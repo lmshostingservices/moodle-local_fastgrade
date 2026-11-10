@@ -25,6 +25,7 @@ import {h, icon, replace} from 'local_fastgrade/lib/dom';
 import {t} from 'local_fastgrade/lib/str';
 import {tip} from 'local_fastgrade/ui/tooltip';
 import Annotator from 'local_fastgrade/annotate/controller';
+import {loadFileData} from 'local_fastgrade/viewer/filedata';
 
 const colName = n => {
     let s = '';
@@ -73,11 +74,9 @@ export default class SheetViewer {
      * Load.
      */
     async load() {
-        const res = await fetch(this.doc.dataurl + '&type=sheet', {credentials: 'same-origin'});
-        if (!res.ok) {
+        this.data = await loadFileData(this.doc, 'sheet').catch(() => {
             throw new Error(t('loadfailed'));
-        }
-        this.data = await res.json();
+        });
         if (this.data.error) {
             throw new Error(this.data.error);
         }

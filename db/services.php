@@ -88,6 +88,13 @@ $functions = [
         'ajax' => true,
         'loginrequired' => true,
     ],
+    'local_fastgrade_get_file_data' => [
+        'classname' => 'local_fastgrade\\external\\get_file_data',
+        'description' => 'Read a submitted spreadsheet, slide notes, code or zip file for the viewers.',
+        'type' => 'read',
+        'ajax' => true,
+        'loginrequired' => true,
+    ],
     'local_fastgrade_bank' => [
         'classname' => 'local_fastgrade\\external\\bank',
         'description' => 'List, save, delete comment bank entries.',

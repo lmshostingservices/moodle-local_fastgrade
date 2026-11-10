@@ -2,6 +2,14 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
+## [v1.4.2] - 2026-11-09
+
+### Changed (Moodle Plugins directory review, MMRT-256)
+
+- Spreadsheet, slide notes, code and zip viewers now read file data through a new web service, `local_fastgrade_get_file_data`, called with `core/ajax`. The old `filedata.php` AJAX script has been removed.
+- Rule labels made by auto-marking (word counts, reference list, in-text citations, legislation, headings), legislation notes and two maths labels now come from the language pack, so they can be translated.
+- The release ZIP now includes directory entries.
+
 ## [v1.4.1] - 2026-11-04
 
 ### Release

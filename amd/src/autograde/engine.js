@@ -22,6 +22,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {t} from 'local_fastgrade/lib/str';
+
 export const STOP = new Set(('a an the and or but if of to in on at by for with from as is are was were be been being it its ' +
     'this that these those there their they them he she his her we our you your i me my not no do does did can could ' +
     'should would will shall may might must have has had so such than then also into about over under more most other ' +
@@ -663,24 +665,24 @@ export const fromInstructions = text => {
         max = Math.round(n(about[1]) * 1.1);
     }
     if (min || max) {
-        const range = min ? `at least ${min} words` : `at most ${max} words`;
-        rule('length', {min, max, label: min && max ? `${min}–${max} words` : range});
+        const range = min ? t('rule_wordsatleast', min) : t('rule_wordsatmost', max);
+        rule('length', {min, max, label: min && max ? t('rule_wordsrange', {min, max}) : range});
     }
     if (/\b(APA|Harvard|Chicago|MLA|reference list|referenc(e|ing)|in-text citations?|cite|bibliography)\b/i.test(src)) {
-        rule('structure', {preset: 'references', label: 'a reference list'});
-        rule('pattern', {preset: 'citation', min: 1, label: 'in-text citations'});
+        rule('structure', {preset: 'references', label: t('rule_referencelist')});
+        rule('pattern', {preset: 'citation', min: 1, label: t('rule_citations')});
     }
     // Legislation named in full: capitalised words (and "and", "of", "(General)"), then Act, Regulations or Code.
     const LAWNAME = new RegExp('[A-Z][A-Za-z]+(?:\\s+(?:[A-Z][A-Za-z]+|and|of|for|the|\\([A-Za-z]+\\)))*' +
         '\\s+(?:Act|Regulations?|Code of Practice)(?=\\s+(?:19|20)\\d{2})', 'g');
     const laws = [...new Set((src.match(LAWNAME) || []).map(x => x.trim()))];
     if (laws.length) {
-        rule('anyof', {terms: laws, min: laws.length, label: 'the legislation named'});
+        rule('anyof', {terms: laws, min: laws.length, label: t('rule_legislationnamed')});
     } else if (/\b(legislation|act and regulations?|regulations?|codes? of practice)\b/i.test(src)) {
-        rule('pattern', {preset: 'legislation', min: 1, label: 'legislation named with its year'});
+        rule('pattern', {preset: 'legislation', min: 1, label: t('rule_legislationyear')});
     }
     if (/\bheadings?\b/i.test(src) && steps.length >= 2) {
-        rule('structure', {preset: 'headings', min: Math.min(steps.length, 6), label: 'a heading for each part'});
+        rule('structure', {preset: 'headings', min: Math.min(steps.length, 6), label: t('rule_headings')});
     }
     return rules;
 };
@@ -958,9 +960,8 @@ export const partsCheck = (text, parts) => {
 /* ---------- Australian VET compliance checks ---------- */
 
 export const LAWS = [
-    {name: 'Work Health and Safety Act', years: [2011, 2012, 2020], note: 'Model WHS Act 2011; SA and Tas 2012; WA 2020'},
-    {name: 'Occupational Health and Safety Act', years: [2004], note: 'The OHS Act 2004 is current only in Victoria. Other ' +
-        'states and territories now use a Work Health and Safety Act (model Act 2011, SA and Tas 2012, WA 2020)'},
+    {name: 'Work Health and Safety Act', years: [2011, 2012, 2020], note: 'lawnote_whs'},
+    {name: 'Occupational Health and Safety Act', years: [2004], note: 'lawnote_ohs'},
     {name: 'Privacy Act', years: [1988]},
     {name: 'Fair Work Act', years: [2009]},
     {name: 'Disability Discrimination Act', years: [1992]},
@@ -978,10 +979,10 @@ export const LAWS = [
     {name: 'Food Standards Australia New Zealand Act', years: [1991]},
     {name: 'National Disability Insurance Scheme Act', years: [2013]},
     {name: 'Workplace Gender Equality Act', years: [2012]},
-    {name: 'Aged Care Act', years: [1997, 2024], note: 'The Aged Care Act 2024 replaced the 1997 Act from 1 November 2025'},
+    {name: 'Aged Care Act', years: [1997, 2024], note: 'lawnote_agedcare'},
     {name: 'Anti-Money Laundering and Counter-Terrorism Financing Act', years: [2006]},
     {name: 'Standards for Registered Training Organisations', years: [2015, 2025],
-        note: 'The 2025 Standards for RTOs replaced the 2015 Standards from 1 July 2025'},
+        note: 'lawnote_rtostandards'},
 ];
 
 /**
@@ -999,13 +1000,13 @@ export const lawCheck = text => {
             const year = m[1] ? parseInt(m[1], 10) : 0;
             if (year && !law.years.includes(year)) {
                 out.push({start: m.index, end: m.index + m[0].length, label: m[0], level: 'warn',
-                    message: law.note || `${law.name} ${law.years.join(' / ')}`});
+                    message: law.note ? t(law.note) : `${law.name} ${law.years.join(' / ')}`});
             } else if (!year) {
                 out.push({start: m.index, end: m.index + m[0].length, label: m[0], level: 'info',
                     message: `${law.name} ${law.years[law.years.length - 1]}`});
             } else if (law.note && (law.name.startsWith('Aged Care') ? year === 1997 : (law.name.startsWith('Standards') ?
                 year === 2015 : law.name.startsWith('Occupational')))) {
-                out.push({start: m.index, end: m.index + m[0].length, label: m[0], level: 'warn', message: law.note});
+                out.push({start: m.index, end: m.index + m[0].length, label: m[0], level: 'warn', message: t(law.note)});
             }
         }
     });

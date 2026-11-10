@@ -184,7 +184,8 @@ class files {
             'downloadurl' => $download->out(false),
             'pdfurl' => '',
             'conversion' => 'none',
-            'dataurl' => '',
+            'hasdata' => false,
+            'contextid' => (int)$file->get_contextid(),
         ];
         if ($kind === 'pdf') {
             $out['pdfurl'] = $out['url'];
@@ -195,13 +196,7 @@ class files {
             }
         }
         if (in_array($kind, ['sheet', 'slides', 'code', 'zip'])) {
-            $out['dataurl'] = (new \moodle_url(
-                '/local/fastgrade/filedata.php',
-                [
-                    'contextid' => $file->get_contextid(),
-                    'fileid' => $file->get_id(),
-                ]
-            ))->out(false);
+            $out['hasdata'] = true;
         }
         return $out;
     }

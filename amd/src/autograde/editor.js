@@ -123,7 +123,7 @@ const mathsBody = (app, rule) => {
     const photoGuide = h('pre.fg-maths-guide', null, t('maths_guide_photo'));
     return [
         h('label.fg-field', null, h('span', null, t('maths_answer')),
-            h('input.fg-input', {type: 'text', value: c.answer || '', placeholder: 'x = -1/2 or x = 3', oninput: e => {
+            h('input.fg-input', {type: 'text', value: c.answer || '', placeholder: t('maths_answerexample'), oninput: e => {
                 c.answer = e.target.value;
             }}), h('small.fg-muted', null, t('maths_answer_help'))),
         h('label.fg-check', null, h('input', {type: 'checkbox', checked: c.working !== 0, onchange: e => {

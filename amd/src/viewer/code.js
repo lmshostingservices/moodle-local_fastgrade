@@ -24,14 +24,14 @@
 import TextViewer from 'local_fastgrade/viewer/text';
 import {esc} from 'local_fastgrade/lib/dom';
 import {t} from 'local_fastgrade/lib/str';
+import {loadFileData} from 'local_fastgrade/viewer/filedata';
 
 export default class CodeViewer extends TextViewer {
     /**
      * Load the text.
      */
     async load() {
-        const res = await fetch(this.doc.dataurl + '&type=text', {credentials: 'same-origin'});
-        const data = await res.json();
+        const data = await loadFileData(this.doc, 'text');
         if (data.error) {
             throw new Error(data.error);
         }
