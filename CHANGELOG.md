@@ -2,6 +2,11 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
+## [v1.5.4] - 2026-11-17
+
+### Fixed
+- Maths check: a substitution check written as the last line (for example `2(6) + 5 = 17` after `x = 6`) is no longer taken as the final answer. Before, it gave "no solutions" or a list of thousands of values and marked a correct answer wrong. Lines like `2x = 2x` that are true for every x are skipped the same way.
+
 ## [v1.5.3] - 2026-11-17
 
 ### Fixes

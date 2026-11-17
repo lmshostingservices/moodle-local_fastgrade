@@ -433,13 +433,33 @@ export const checker = ce => {
         }
         return n >= 3;
     };
+    // More values than any answer in school maths has: the line is true for (almost) every x, so it is not an answer.
+    const MANY = 12;
     const fmt = s => s.map(v => {
         const r = Math.round(v * 1e4) / 1e4;
         const fr = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12].map(d => [d, Math.round(v * d)]).find(([d, n]) =>
             Math.abs(v - n / d) < 1e-9 && Math.abs(n) % d !== 0);
         return fr ? `${fr[1]}/${fr[0]}` : String(r);
     }).join(', ');
-    const label = set => set.length ? 'x = ' + fmt(set).split(', ').join(' or x = ') : 'no solutions';
+    const label = set => set.length > MANY ? 'x = ' + fmt(set.slice(0, 3)).split(', ').join(' or x = ') + ' or …' :
+        (set.length ? 'x = ' + fmt(set).split(', ').join(' or x = ') : 'no solutions');
+
+    /**
+     * Whether a line is a check rather than an answer: plain arithmetic with no unknown ("2(6) + 5 = 17", true or
+     * not), or something true for almost every x ("2x = 2x"). Students often end with a check; the answer is the line
+     * before it.
+     *
+     * @param {string} typed
+     * @param {Object|null} value interpreted line
+     * @returns {boolean}
+     */
+    const isCheck = (typed, value) => {
+        const words = String(typed || '').replace(/\b(?:check(?:ing)?|ans(?:wer)?|so|hence|therefore|thus|lhs|rhs)\b/gi, '');
+        if (!/[a-z]/i.test(words)) {
+            return true;
+        }
+        return !!(value && value.type === 'set' && value.set.length > MANY);
+    };
 
     /**
      * Check a chain of lines.
@@ -685,7 +705,7 @@ export const checker = ce => {
         const res = checkChain(lines, {question});
         const merged = lines.map((l, i) => Object.assign({}, l, res[i]));
         const steps = merged.filter(l => ['ok', 'slip', 'ft'].includes(l.verdict));
-        const last = [...merged].reverse().find(l => l.value && l.value.type === 'set');
+        const last = [...merged].reverse().find(l => l.value && l.value.type === 'set' && !isCheck(l.typed, l.value));
         let want = null;
         if (opts.answer && opts.answer.trim()) {
             try {
@@ -698,7 +718,8 @@ export const checker = ce => {
             want = question;
         }
         let answer = null;
-        const end = [...merged].reverse().find(l => l.value && ['set', 'sys', 'ineq', 'indefint', 'defint'].includes(l.value.type));
+        const ENDS = ['set', 'sys', 'ineq', 'indefint', 'defint'];
+        const end = [...merged].reverse().find(l => l.value && ENDS.includes(l.value.type) && !isCheck(l.typed, l.value));
         const firstIneq = merged.find(l => l.value && l.value.type === 'ineq');
         if (end && end.value.type === 'sys' && end.value.solved && end.value.sols && end.value.sols.length) {
             const sols = end.value.sols;
@@ -774,6 +795,9 @@ export const checker = ce => {
                     }
                 }
                 const v = interpret(toTex(lines[i].typed));
+                if (v.type === 'set' && isCheck(lines[i].typed, v)) {
+                    continue;
+                }
                 if (v.type === 'set') {
                     return {key: v.set.map(x => x.toFixed(4)).join('|'), label: label(v.set), set: v.set};
                 }
