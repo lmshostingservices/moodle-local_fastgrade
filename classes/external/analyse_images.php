@@ -43,7 +43,13 @@ class analyse_images extends external_api {
                 'cmid' => new external_value(PARAM_INT, 'cmid'),
                 'userid' => new external_value(PARAM_INT, 'student'),
                 'fileids' => new external_value(PARAM_SEQUENCE, 'comma-separated file ids'),
-                'mode' => new external_value(PARAM_ALPHA, 'criteria, transcribe or status', VALUE_DEFAULT, 'criteria'),
+                'rotations' => new external_value(
+                    PARAM_SEQUENCE,
+                    'comma-separated clockwise turns in degrees, one per file id, as the marker turned each photo',
+                    VALUE_DEFAULT,
+                    ''
+                ),
+                'mode' => new external_value(PARAM_ALPHA, 'criteria, transcribe, status, or peekcriteria / peektranscribe (what is kept, free)', VALUE_DEFAULT, 'criteria'),
                 'task' => new external_value(PARAM_TEXT, 'the question or task', VALUE_DEFAULT, ''),
                 'criteriajson' => new external_value(PARAM_RAW, 'JSON', VALUE_DEFAULT, '[]'), // pipeline-ignore: PARAM_RAW — JSON.
             ]
@@ -56,18 +62,20 @@ class analyse_images extends external_api {
      * @param mixed $cmid
      * @param mixed $userid
      * @param mixed $fileids
+     * @param mixed $rotations
      * @param mixed $mode
      * @param mixed $task
      * @param mixed $criteriajson
      * @return array
      */
-    public static function execute($cmid, $userid, $fileids, $mode, $task, $criteriajson): array {
+    public static function execute($cmid, $userid, $fileids, $rotations, $mode, $task, $criteriajson): array {
         $p = self::validate_parameters(
             self::execute_parameters(),
             [
                 'cmid' => $cmid,
                 'userid' => $userid,
                 'fileids' => $fileids,
+                'rotations' => $rotations,
                 'mode' => $mode,
                 'task' => $task,
                 'criteriajson' => $criteriajson,
@@ -92,8 +100,21 @@ class analyse_images extends external_api {
         }
         $context = $source->get_context();
         $criteria = aiimage::clean_criteria(self::decode($p['criteriajson']));
+        // Peek: which photos already have a kept result, so the marker is only asked about credits that will be spent.
+        $peek = strpos($p['mode'], 'peek') === 0;
+        if ($peek) {
+            $p['mode'] = $p['mode'] === 'peektranscribe' ? 'transcribe' : 'criteria';
+        }
         if ($p['mode'] !== 'transcribe' && !$criteria) {
             throw new \invalid_parameter_exception('criteria');
+        }
+        // Each photo's turn, matched to its file id by position.
+        $turnof = [];
+        $turns = $p['rotations'] === '' ? [] : explode(',', $p['rotations']);
+        foreach (explode(',', $p['fileids']) as $i => $id) {
+            if ((int)$id && !isset($turnof[(int)$id])) {
+                $turnof[(int)$id] = \local_fastgrade\local\views::norm($turns[$i] ?? 0);
+            }
         }
         $ids = array_slice(array_unique(array_filter(array_map('intval', explode(',', $p['fileids'])))), 0, aiimage::MAXIMAGES);
         $fs = get_file_storage();
@@ -109,6 +130,18 @@ class analyse_images extends external_api {
                 $out['images'][] = ['fileid' => $id, 'error' => get_string('ai_notimage', 'local_fastgrade')];
                 continue;
             }
+            if ($peek) {
+                $kept = aiimage::is_kept(
+                    (int)$source->get_cm()->id,
+                    $file,
+                    $criteria,
+                    $p['mode'],
+                    $p['task'],
+                    $turnof[$id] ?? 0
+                );
+                $out['images'][] = ['fileid' => $id, 'kept' => $kept];
+                continue;
+            }
             try {
                 $res = aiimage::analyse(
                     (int)$source->get_cm()->id,
@@ -116,7 +149,8 @@ class analyse_images extends external_api {
                     $file,
                     $criteria,
                     $p['mode'],
-                    $p['task']
+                    $p['task'],
+                    $turnof[$id] ?? 0
                 );
             } catch (\moodle_exception $e) {
                 $out['images'][] = ['fileid' => $id, 'error' => $e->getMessage(), 'code' => $e->errorcode];

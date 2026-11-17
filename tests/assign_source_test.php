@@ -188,7 +188,12 @@ final class assign_source_test extends \advanced_testcase {
                 'timemodified' => time(),
             ]
         );
-        course_delete_module($cm->id);
+        if (method_exists(\core_courseformat\local\cmactions::class, 'delete')) {
+            // Moodle 5.2 and later.
+            \core_courseformat\formatactions::cm($cm->course)->delete($cm->id);
+        } else {
+            course_delete_module($cm->id);
+        }
         $this->assertFalse($DB->record_exists('local_fastgrade_mark', ['cmid' => $cm->id]));
         $this->assertFalse($DB->record_exists('local_fastgrade_annot', ['cmid' => $cm->id]));
     }

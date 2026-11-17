@@ -145,12 +145,14 @@ class aiimage {
     }
 
     /**
-     * The image bytes to send: JPEG, longest side at most MAXSIDE, EXIF orientation applied, metadata dropped.
+     * The image bytes to send: JPEG, longest side at most MAXSIDE, EXIF orientation applied, then turned the way the
+     * marker turned it, metadata dropped.
      *
      * @param \stored_file $file
+     * @param int $markerturn clockwise degrees the marker turned the photo (0, 90, 180 or 270)
      * @return string
      */
-    public static function prepare(\stored_file $file): string {
+    public static function prepare(\stored_file $file, int $markerturn = 0): string {
         if ($file->get_filesize() > self::MAXBYTES) {
             throw new \moodle_exception('ai_toolarge', 'local_fastgrade');
         }
@@ -165,6 +167,11 @@ class aiimage {
             if ($turn) {
                 $img = imagerotate($img, $turn, 0);
             }
+        }
+        // GD turns anticlockwise; the marker's turn is clockwise.
+        $marker = views::norm($markerturn);
+        if ($marker) {
+            $img = imagerotate($img, -$marker, 0);
         }
         $w = imagesx($img);
         $h = imagesy($img);
@@ -208,6 +215,60 @@ class aiimage {
     }
 
     /**
+     * The key a request is charged and kept under: the photo, how it is turned, mode, task and criteria.
+     *
+     * @param \stored_file $file
+     * @param array $criteria cleaned criteria
+     * @param string $mode 'criteria' or 'transcribe'
+     * @param string $task the question or task, as plain text
+     * @param int $markerturn clockwise degrees the marker turned the photo
+     * @return string
+     */
+    public static function requestkey(
+        \stored_file $file,
+        array $criteria,
+        string $mode,
+        string $task,
+        int $markerturn = 0
+    ): string {
+        $mode = $mode === 'transcribe' ? 'transcribe' : 'criteria';
+        $task = \core_text::substr(trim($task), 0, 2000);
+        $markerturn = views::norm($markerturn);
+        // A photo turned by the marker is a different picture to read; unturned keeps the keys results were kept under.
+        $parts = [$file->get_contenthash(), $mode, $task, json_encode($criteria)];
+        if ($markerturn) {
+            $parts[] = 'turn:' . $markerturn;
+        }
+        return hash('sha256', implode("\0", $parts));
+    }
+
+    /**
+     * Whether a result is kept for this request, so asking again costs nothing.
+     *
+     * @param int $cmid
+     * @param \stored_file $file
+     * @param array $criteria cleaned criteria
+     * @param string $mode criteria or transcribe
+     * @param string $task
+     * @param int $markerturn
+     * @return bool
+     */
+    public static function is_kept(
+        int $cmid,
+        \stored_file $file,
+        array $criteria,
+        string $mode,
+        string $task,
+        int $markerturn = 0
+    ): bool {
+        global $DB;
+        return $DB->record_exists(
+            'local_fastgrade_aiimage',
+            ['requestkey' => static::requestkey($file, $criteria, $mode, $task, $markerturn), 'cmid' => $cmid]
+        );
+    }
+
+    /**
      * Analyse one image against the criteria (or read the handwriting in it), using a kept result if there is one.
      *
      * @param int $cmid
@@ -216,6 +277,7 @@ class aiimage {
      * @param array $criteria cleaned criteria
      * @param string $mode 'criteria' or 'transcribe'
      * @param string $task the question or task, as plain text
+     * @param int $markerturn clockwise degrees the marker turned the photo
      * @return array result {criteria: [...], transcription, summary, credits, cached}
      */
     public static function analyse(
@@ -224,12 +286,14 @@ class aiimage {
         \stored_file $file,
         array $criteria,
         string $mode,
-        string $task
+        string $task,
+        int $markerturn = 0
     ): array {
         global $DB, $USER;
+        $key = static::requestkey($file, $criteria, $mode, $task, $markerturn);
         $mode = $mode === 'transcribe' ? 'transcribe' : 'criteria';
         $task = \core_text::substr(trim($task), 0, 2000);
-        $key = hash('sha256', implode("\0", [$file->get_contenthash(), $mode, $task, json_encode($criteria)]));
+        $markerturn = views::norm($markerturn);
         if ($kept = $DB->get_record('local_fastgrade_aiimage', ['requestkey' => $key, 'cmid' => $cmid])) {
             $res = json_decode($kept->resultjson, true) ?: [];
             return ['credits' => 0, 'cached' => true] + $res;
@@ -243,7 +307,7 @@ class aiimage {
             'criteria' => $criteria,
             'image' => [
                 'mimeType' => 'image/jpeg',
-                'data' => base64_encode(static::prepare($file)),
+                'data' => base64_encode(static::prepare($file, $markerturn)),
             ],
         ];
         [$code, $data] = static::post('/api/ai/image-analysis', $body, 90);

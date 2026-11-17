@@ -88,6 +88,9 @@ class save_annotations extends external_api {
             (array)($data['deletes'] ?? []),
             (array)($data['meta'] ?? [])
         );
+        if (!empty($data['views']) && is_array($data['views'])) {
+            \local_fastgrade\local\views::apply($mark, $data['views']);
+        }
         foreach ((array)($data['bankused'] ?? []) as $bankid) {
             \local_fastgrade\local\bank::used((int)$bankid);
         }

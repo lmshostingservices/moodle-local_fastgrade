@@ -38,7 +38,7 @@ import * as Download from 'local_fastgrade/ui/download';
  * @param {string} cls
  * @returns {HTMLElement}
  */
-export const iconButton = (name, tiptext, key, onclick, cls = '') => tip(
+const iconButton = (name, tiptext, key, onclick, cls = '') => tip(
     h('button.fg-icon-btn', {type: 'button', "class": cls, onclick}, icon(name)), tiptext, key);
 
 export default class Topbar {

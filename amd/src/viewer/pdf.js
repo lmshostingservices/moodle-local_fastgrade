@@ -16,7 +16,8 @@
 /**
  * PDF (and converted Word/PowerPoint, and images) with a text layer for one-click word and
  * two-click paragraph selection, and an SVG layer for marks and drawing. Pages render lazily.
- * Marks are stored in page units (PDF points at 100%), independent of zoom.
+ * Marks are stored in page units (PDF points at 100%), independent of zoom, on the page as it is shown: when a
+ * marker turns a page, its marks are turned with it (see annotate/rotate).
  *
  * @module     local_fastgrade/viewer/pdf
  * @copyright  2026 LMS Hosting Services / LMS Labs
@@ -31,6 +32,7 @@ import Annotator from 'local_fastgrade/annotate/controller';
 import * as Api from 'local_fastgrade/lib/api';
 import {findLines, spotAt} from 'local_fastgrade/maths/lines';
 import {loadFileData} from 'local_fastgrade/viewer/filedata';
+import * as Rotate from 'local_fastgrade/annotate/rotate';
 
 const COLOURS = {amber: '#d97706', green: '#22c65e', blue: '#0e88ff', ink: '#1f2937'};
 const POLCOLOUR = {improvement: '#d97706', positive: '#22c65e', neutral: '#0e88ff'};
@@ -124,8 +126,10 @@ export default class PdfViewer {
         this.pdf = await task.promise;
         for (let i = 1; i <= this.pdf.numPages; i++) {
             const page = await this.pdf.getPage(i);
-            const vp = page.getViewport({scale: 1});
-            this.pages.push(this.makePage(i, vp.width, vp.height, page));
+            const p = this.makePage(i, 0, 0, page);
+            p.rot = this.savedRotation(i);
+            this.sizePage(p);
+            this.pages.push(p);
         }
     }
 
@@ -137,12 +141,58 @@ export default class PdfViewer {
         img.decoding = 'async';
         img.src = this.doc.url;
         await img.decode();
+        // Page units come from the photo as taken (EXIF orientation already applied by the browser), so turning it
+        // only swaps width and height and marks keep their size.
         const max = 1200;
-        const ratio = Math.min(1, max / img.naturalWidth);
-        const w = img.naturalWidth * ratio;
-        const hgt = img.naturalHeight * ratio;
+        this.imageRatio = Math.min(1, max / img.naturalWidth);
         this.image = img;
-        this.pages.push(this.makePage(1, w, hgt, null));
+        const p = this.makePage(1, 0, 0, null);
+        p.rot = this.savedRotation(1);
+        this.sizePage(p);
+        this.pages.push(p);
+    }
+
+    /**
+     * The saved turn for a page.
+     *
+     * @param {number} n
+     * @returns {number}
+     */
+    savedRotation(n) {
+        const model = this.app.annotations;
+        return model && model.rotation ? model.rotation(this.docref, n) : 0;
+    }
+
+    /**
+     * Set a page's size in page units for its turn. A PDF page's own /Rotate is added to the marker's turn.
+     *
+     * @param {Object} p
+     */
+    sizePage(p) {
+        let w;
+        let hgt;
+        if (p.page) {
+            const vp = p.page.getViewport({scale: 1, rotation: this.totalRotation(p)});
+            w = vp.width;
+            hgt = vp.height;
+        } else {
+            const iw = this.image.naturalWidth * this.imageRatio;
+            const ih = this.image.naturalHeight * this.imageRatio;
+            [w, hgt] = p.rot % 180 ? [ih, iw] : [iw, ih];
+        }
+        p.w = w;
+        p.h = hgt;
+        [p.svg, p.draw, p.guides].forEach(el => el.setAttribute('viewBox', `0 0 ${w} ${hgt}`));
+    }
+
+    /**
+     * How a page is shown: its own /Rotate (PDFs) plus the marker's turn.
+     *
+     * @param {Object} p
+     * @returns {number}
+     */
+    totalRotation(p) {
+        return Rotate.norm((p.page ? p.page.rotate || 0 : 0) + (p.rot || 0));
     }
 
     /**
@@ -164,7 +214,7 @@ export default class PdfViewer {
             'aria-hidden': 'true'});
         el.append(canvas, text, guides, svg, draw, h('span.fg-page-num', {'aria-hidden': 'true'}, String(n)));
         return {n, w, h: hgt, page, el, canvas, text, svg, draw, guides, lines: null, rendered: 0, task: null,
-            textReady: false};
+            textReady: false, rot: 0};
     }
 
     /**
@@ -242,24 +292,27 @@ export default class PdfViewer {
      * @param {Object} p
      */
     async renderPage(p) {
-        if (this.destroyed || (p.rendered === this.scale && !p.stale) || p.busy) {
+        const rot = this.totalRotation(p);
+        if (this.destroyed || (p.rendered === this.scale && !p.stale && p.renderedRot === rot) || p.busy) {
             return;
         }
         p.busy = true;
+        // The zoom this render is for. The zoom can change while a page draws (the layout settles just after the
+        // screen opens); the page is then drawn again, so it is never left at the old size.
+        const scale = this.scale;
         const dpr = DPR();
-        const w = Math.round(p.w * this.scale);
-        const hh = Math.round(p.h * this.scale);
+        const w = Math.round(p.w * scale);
+        const hh = Math.round(p.h * scale);
         try {
             if (this.image) {
                 p.canvas.width = Math.round(w * dpr);
                 p.canvas.height = Math.round(hh * dpr);
-                const ctx = p.canvas.getContext('2d');
-                ctx.drawImage(this.image, 0, 0, p.canvas.width, p.canvas.height);
+                Rotate.drawImage(p.canvas.getContext('2d'), this.image, p.rot, p.canvas.width, p.canvas.height);
             } else {
                 if (p.task) {
                     p.task.cancel();
                 }
-                const vp = p.page.getViewport({scale: this.scale * dpr});
+                const vp = p.page.getViewport({scale: scale * dpr, rotation: rot});
                 const off = document.createElement('canvas');
                 off.width = Math.round(vp.width);
                 off.height = Math.round(vp.height);
@@ -274,7 +327,8 @@ export default class PdfViewer {
             }
             p.canvas.style.width = w + 'px';
             p.canvas.style.height = hh + 'px';
-            p.rendered = this.scale;
+            p.rendered = scale;
+            p.renderedRot = rot;
             p.stale = false;
             if (this.tool === 'mark') {
                 this.findPageLines(p);
@@ -290,7 +344,7 @@ export default class PdfViewer {
             p.busy = false;
             p.task = null;
         }
-        if (p.rendered !== this.scale && !this.destroyed) {
+        if ((p.rendered !== this.scale || p.renderedRot !== this.totalRotation(p)) && !this.destroyed && p.rendered) {
             this.renderPage(p);
         }
     }
@@ -622,7 +676,11 @@ export default class PdfViewer {
         off.height = ch;
         const ctx = off.getContext('2d', {willReadFrequently: true});
         try {
-            ctx.drawImage(this.image || p.canvas, 0, 0, cw, ch);
+            if (this.image) {
+                Rotate.drawImage(ctx, this.image, p.rot, cw, ch);
+            } else {
+                ctx.drawImage(p.canvas, 0, 0, cw, ch);
+            }
             p.lines = findLines(ctx.getImageData(0, 0, cw, ch));
         } catch (e) {
             p.lines = [];
@@ -1072,20 +1130,21 @@ export default class PdfViewer {
      */
     buildText(p) {
         const scale = this.scale;
-        if (p.textReady && p.textScale === scale) {
+        const rot = this.totalRotation(p);
+        if (p.textReady && p.textScale === scale && p.textRot === rot) {
             return Promise.resolve();
         }
-        if (p.textJob && p.textJob.scale === scale) {
+        if (p.textJob && p.textJob.scale === scale && p.textJob.rot === rot) {
             return p.textJob.promise;
         }
-        const job = {scale};
+        const job = {scale, rot: this.totalRotation(p)};
         p.textJob = job;
         job.promise = (async() => {
             const div = h('div.textLayer');
             const tl = new this.pdfjs.TextLayer({textContentSource: p.page.streamTextContent(), container: div,
-                viewport: p.page.getViewport({scale})});
+                viewport: p.page.getViewport({scale, rotation: this.totalRotation(p)})});
             await tl.render();
-            if (p.textJob !== job || this.destroyed) {
+            if (p.textJob !== job || this.destroyed || job.rot !== this.totalRotation(p)) {
                 return;
             }
             div.append(h('div.endOfContent'));
@@ -1093,7 +1152,9 @@ export default class PdfViewer {
             p.text = div;
             p.textReady = true;
             p.textScale = scale;
+            p.textRot = rot;
             p.textString = null;
+            p.inserted = null;
             p.textJob = null;
         })();
         return job.promise;
@@ -1121,6 +1182,77 @@ export default class PdfViewer {
         }
         this.layoutPages();
         this.scroll.scrollTop = anchor * this.scroll.scrollHeight;
+    }
+
+    /**
+     * The page most in view.
+     *
+     * @returns {Object|null}
+     */
+    currentPage() {
+        if (this.pages.length < 2) {
+            return this.pages[0] || null;
+        }
+        const r = this.scroll.getBoundingClientRect();
+        let best = null;
+        let most = -1;
+        this.pages.forEach(p => {
+            const pr = p.el.getBoundingClientRect();
+            const seen = Math.min(pr.bottom, r.bottom) - Math.max(pr.top, r.top);
+            if (seen > most) {
+                most = seen;
+                best = p;
+            }
+        });
+        return best;
+    }
+
+    /**
+     * Turn the page in view (or every page), with its marks. Saved, so the next marker and the student see it the
+     * same way.
+     *
+     * @param {number} delta 90 (clockwise) or -90
+     * @param {boolean} all every page
+     */
+    rotate(delta, all = false) {
+        if (this.app.readonly || !this.pages.length) {
+            return;
+        }
+        const model = this.app.annotations;
+        const targets = all ? this.pages : [this.currentPage()].filter(Boolean);
+        const anchorPage = this.currentPage();
+        window.getSelection().removeAllRanges();
+        if (this.annotator) {
+            this.annotator.hidePill();
+        }
+        targets.forEach(p => {
+            p.rot = model.turn(this.docref, p.n, delta, p.w, p.h);
+            this.sizePage(p);
+            p.lines = null;
+            replace(p.guides);
+            p.textReady = false;
+            p.textString = null;
+            p.inserted = null;
+            p.stale = true;
+            if (p.text) {
+                replace(p.text);
+            }
+        });
+        this.computeFit();
+        this.layoutPages();
+        if (this.tool === 'mark') {
+            targets.forEach(p => this.findPageLines(p));
+        }
+        if (this.annotator) {
+            this.annotator.refresh();
+        }
+        if (anchorPage && this.pages.length > 1) {
+            this.scroll.scrollTop = Math.max(0, anchorPage.el.offsetTop - 12);
+        }
+        if (this.host.announce) {
+            this.host.announce(t(all ? 'rotated_all' : 'rotated', {page: anchorPage ? anchorPage.n : 1,
+                deg: anchorPage ? anchorPage.rot : 0}));
+        }
     }
 
     /**

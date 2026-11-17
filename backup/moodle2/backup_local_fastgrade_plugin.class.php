@@ -68,6 +68,7 @@ class backup_local_fastgrade_plugin extends backup_local_plugin {
                     'slot',
                     'markerid',
                     'fillingjson',
+                    'viewjson',
                     'timesubmitted',
                     'timefirstopened',
                     'timegraded',

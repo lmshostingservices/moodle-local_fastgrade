@@ -15,6 +15,8 @@ Fast Grade requires a one-time 50-credit unlock or an existing site purchase. Th
 
 **Mark on the work itself.** Highlight, underline, box, strike or pin a comment on PDFs, Word documents (converted to PDF when the site has a document converter set up), images and online text. Every mark is either Positive (green) or Improvement (amber). Fast Grade never puts red on a student's work.
 
+**Turn photos and pages.** Rotate left and right (Shift+L, Shift+R) turn a sideways or upside-down photo, or the PDF page in view (Shift-click for every page). Marks turn with the page, and the turn is saved, so other markers, the student and the downloaded PDF all see it the right way up.
+
 **Voice feedback.** Dictate any comment. Speech is turned into text in the marker's browser. The default is on-device only. A site can also allow the browser's own speech service. Fast Grade records how much feedback was spoken.
 
 **Rubrics and marking guides.** These sit beside the work, each with a remark box per criterion. A comment bank, keyboard shortcuts and "Save & next" keep the flow fast.

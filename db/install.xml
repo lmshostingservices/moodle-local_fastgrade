@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/fastgrade/db" VERSION="20261026" COMMENT="XMLDB file for Moodle local/fastgrade"
+<XMLDB PATH="local/fastgrade/db" VERSION="20261116" COMMENT="XMLDB file for Moodle local/fastgrade"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -22,6 +22,7 @@
         <FIELD NAME="timegraded" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="activesecs" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Seconds the marker actively worked on this submission"/>
         <FIELD NAME="autojson" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="What the auto-marker suggested, for the report"/>
+        <FIELD NAME="viewjson" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="How each document is shown, such as turned photos and pages"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>

@@ -54,6 +54,7 @@ class provider implements
                 'timegraded' => 'privacy:metadata:mark:timegraded',
                 'activesecs' => 'privacy:metadata:mark:activesecs',
                 'autojson' => 'privacy:metadata:mark:autojson',
+                'viewjson' => 'privacy:metadata:mark:viewjson',
             ],
             'privacy:metadata:mark'
         );

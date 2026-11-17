@@ -39,14 +39,14 @@ import * as Export from 'local_fastgrade/annotate/export';
 const KINDICON = {text: 'filetext', pdf: 'file', office: 'filetext', slides: 'slides', sheet: 'sheet', image: 'image',
     audio: 'media', video: 'media', code: 'code', zip: 'file', other: 'file'};
 
-export const TOOLS = [
+const TOOLS = [
     ['select', 'select', 'Esc'], ['area', 'area', 'Q'], ['pen', 'pen', 'D'], ['rect', 'rect', 'R'], ['ellipse', 'ellipse', 'O'],
     ['arrow', 'arrow', 'W'], ['text', 'text', 'T'], ['tick', 'check', '⇧ 1'], ['cross', 'x', '⇧ 2'], ['query', 'question', '⇧ 3'],
     ['mark', 'stamp', 'L'], ['eraser', 'eraser', 'E'],
 ];
 
 /** Method and accuracy mark stamps, as used in maths marking. */
-export const MARKCODES = ['M1', 'A1', 'B1', 'ft', 'A0'];
+const MARKCODES = ['M1', 'A1', 'B1', 'ft', 'A0'];
 
 /**
  * Value of a mark stamp.
@@ -54,7 +54,7 @@ export const MARKCODES = ['M1', 'A1', 'B1', 'ft', 'A0'];
  * @param {string} code
  * @returns {number}
  */
-export const markValue = code => (code === 'A0' ? 0 : 1);
+const markValue = code => (code === 'A0' ? 0 : 1);
 
 export default class ViewerHost {
     /**
@@ -67,14 +67,51 @@ export default class ViewerHost {
         this.tabs = h('div.fg-doctabs', {role: 'tablist', 'aria-label': t('documents')});
         this.toolbar = h('div.fg-toolbar', {role: 'toolbar', 'aria-label': t('annotationtools')});
         this.stage = h('div.fg-stage');
+        this.live = h('span.fg-sr-only', {'aria-live': 'polite'});
         this.el = h('main.fg-docarea', {'aria-label': t('documents')},
-            h('div.fg-docbar', null, this.tabs, this.toolbar), this.stage);
+            h('div.fg-docbar', null, this.tabs, this.toolbar), this.stage, this.live);
         this.viewer = null;
         this.doc = null;
         this.tool = 'select';
         this.colour = 'amber';
         this.markCode = 'M1';
         this.pollers = [];
+    }
+
+    /**
+     * Say something to screen readers.
+     *
+     * @param {string} text
+     */
+    announce(text) {
+        this.live.textContent = '';
+        setTimeout(() => {
+            this.live.textContent = text;
+        }, 50);
+    }
+
+    /**
+     * Whether the open document can be turned (photos and PDF pages, by markers).
+     *
+     * @returns {boolean}
+     */
+    canRotate() {
+        return !!(this.viewer && this.viewer.rotate && !this.app.readonly);
+    }
+
+    /**
+     * Turn the page in view. Shift turns every page of a PDF.
+     *
+     * @param {number} delta 90 or -90
+     * @param {boolean} all
+     * @returns {boolean}
+     */
+    rotate(delta, all = false) {
+        if (!this.canRotate()) {
+            return false;
+        }
+        this.viewer.rotate(delta, all);
+        return true;
     }
 
     /**
@@ -351,11 +388,23 @@ export default class ViewerHost {
             bits.push(h('span.fg-tb-hint', null, icon('info', 'fg-i-xs'), t('selecthint')));
         }
         bits.push(h('span.fg-grow'));
+        // Everything after the spacer is one group, so on a narrow screen it moves to a second row together.
+        const tail = bits.length;
         if (v && v.supportsMarks && !ro) {
             bits.push(tip(h('button.fg-icon-btn', {type: 'button', onclick: () => this.app.annotations.undo()}, icon('undo')),
                 t('undo'), Shortcuts.label('mod+z')));
             bits.push(tip(h('button.fg-icon-btn', {type: 'button', onclick: () => this.app.annotations.redo()}, icon('redo')),
                 t('redo'), Shortcuts.label('mod+shift+z')));
+        }
+        if (this.canRotate()) {
+            const many = v.pages && v.pages.length > 1;
+            bits.push(h('span.fg-sep'));
+            bits.push(tip(h('button.fg-icon-btn', {type: 'button', 'aria-label': t('rotateleft'),
+                onclick: e => this.rotate(-90, many && e.shiftKey)}, icon('rotateccw')),
+            many ? t('rotateleft_tip_pages') : t('rotateleft_tip'), Shortcuts.label('shift+l')));
+            bits.push(tip(h('button.fg-icon-btn', {type: 'button', 'aria-label': t('rotateright'),
+                onclick: e => this.rotate(90, many && e.shiftKey)}, icon('rotatecw')),
+            many ? t('rotateright_tip_pages') : t('rotateright_tip'), Shortcuts.label('shift+r')));
         }
         if (v && v.zoom) {
             bits.push(h('span.fg-sep'));
@@ -369,12 +418,16 @@ export default class ViewerHost {
             bits.push(tip(h('button.fg-icon-btn', {type: 'button', onclick: () => v.search()}, icon('search')), t('find'),
                 Shortcuts.label('mod+f')));
         }
-        if (v && v.supportsMarks && (this.doc.pdfurl || this.doc.kind === 'text')) {
+        if (v && v.supportsMarks && (this.doc.pdfurl || this.doc.kind === 'text' || this.doc.kind === 'image')) {
             bits.push(tip(h('button.fg-icon-btn', {type: 'button', onclick: () => Export.download(this.app, this)},
                 icon('send')), t('downloadannotated_tip')));
         }
         if (this.doc && this.doc.downloadurl) {
             bits.push(tip(h('a.fg-icon-btn', {href: this.doc.downloadurl}, icon('download')), t('downloadoriginal')));
+        }
+        const group = bits.splice(tail).filter(Boolean);
+        if (group.length) {
+            bits.push(h('div.fg-tb-group', null, group));
         }
         replace(this.toolbar, bits);
     }
@@ -555,6 +608,10 @@ export default class ViewerHost {
             }
             return false;
         }, {hidden: true});
+        Shortcuts.add('shift+r', () => this.rotate(90), {group: t('sc_view'), label: t('rotateright'),
+            when: () => this.canRotate()});
+        Shortcuts.add('shift+l', () => this.rotate(-90), {group: t('sc_view'), label: t('rotateleft'),
+            when: () => this.canRotate()});
         const zoom = d => () => (this.viewer && this.viewer.zoom ? (this.viewer.zoom(d), true) : false);
         Shortcuts.add('+', zoom(1), {group: t('sc_view'), label: t('zoomin')});
         Shortcuts.add('=', zoom(1), {hidden: true});

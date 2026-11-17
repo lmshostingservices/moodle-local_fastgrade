@@ -85,6 +85,15 @@ function xmldb_local_fastgrade_upgrade($oldversion) {
         }
         upgrade_plugin_savepoint(true, 2026110200, 'local', 'fastgrade');
     }
+    if ($oldversion < 2026111600) {
+        // How each document is shown (turned photos and pages), kept with the marks made on it.
+        $table = new xmldb_table('local_fastgrade_mark');
+        $field = new xmldb_field('viewjson', XMLDB_TYPE_TEXT, null, null, null, null, null, 'autojson');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 2026111600, 'local', 'fastgrade');
+    }
 
     return true;
 }

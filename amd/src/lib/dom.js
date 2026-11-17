@@ -315,6 +315,10 @@ const PATHS = {
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
     warning: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
     rotate: '<path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/>',
+    rotatecw: '<rect x="3.5" y="9.5" width="11" height="11" rx="1.5"/><path d="M8.5 5.5h5a5 5 0 0 1 5 5v2.5"/>' +
+        '<path d="M16 10.5l2.5 2.5 2.5-2.5"/>',
+    rotateccw: '<rect x="9.5" y="9.5" width="11" height="11" rx="1.5"/><path d="M15.5 5.5h-5a5 5 0 0 0-5 5v2.5"/>' +
+        '<path d="M3 10.5l2.5 2.5 2.5-2.5"/>',
     pin: '<path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/>',
     play: '<path d="M7 4l13 8-13 8z"/>',
     pause: '<path d="M7 4h4v16H7zM13 4h4v16h-4z"/>',

@@ -263,7 +263,7 @@ export default class Panel {
         if (!quiet) {
             this.renderBody();
             this.changed();
-            toast(t('auto_approved', n), {type: 'ok'});
+            toast(n === 1 ? t('auto_approved_one') : t('auto_approved', n), {type: 'ok'});
         }
         return n;
     }
@@ -277,7 +277,7 @@ export default class Panel {
             this.banner.hidden = !n;
             const c = this.banner.querySelector('.fg-autobanner-n');
             if (c) {
-                c.textContent = t('auto_pending', n);
+                c.textContent = n === 1 ? t('auto_pending_one') : t('auto_pending', n);
             }
         }
         const label = this.footer.querySelector('.fg-savenext > span');
@@ -301,10 +301,11 @@ export default class Panel {
      * @returns {HTMLElement}
      */
     autoBanner() {
+        const n = this.pending();
         this.banner = h('div.fg-autobanner', {role: 'status'},
             icon('wand', 'fg-i-sm'),
             h('div.fg-autobanner-text', null, h('strong', null, t('auto_banner_title')),
-                h('span.fg-autobanner-n', null, t('auto_pending', this.pending()))),
+                h('span.fg-autobanner-n', null, n === 1 ? t('auto_pending_one') : t('auto_pending', n))),
             tip(h('button.fg-btn.is-small.is-primary', {type: 'button', onclick: () => this.approveAll()},
                 icon('check', 'fg-i-sm'), t('auto_approveall')), t('auto_approveall_tip'), 'Shift+A'));
         this.banner.hidden = !this.pending();

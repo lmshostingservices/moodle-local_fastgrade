@@ -25,14 +25,9 @@ import {h, icon, replace, date} from 'local_fastgrade/lib/dom';
 import {t} from 'local_fastgrade/lib/str';
 import {tip} from 'local_fastgrade/ui/tooltip';
 import * as Dictate from 'local_fastgrade/voice/dictate';
+import {POL} from 'local_fastgrade/annotate/polarity';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
-
-export const POL = {
-    improvement: {icon: 'up', label: () => t('pol_improvement')},
-    positive: {icon: 'check', label: () => t('pol_positive')},
-    neutral: {icon: 'comment', label: () => t('pol_neutral')},
-};
 
 /**
  * Whether an annotation shows a card.
@@ -40,7 +35,7 @@ export const POL = {
  * @param {Object} a
  * @returns {boolean}
  */
-export const hasCard = a => ['border', 'comment', 'highlight', 'underline', 'strike', 'squiggly', 'area', 'cell',
+const hasCard = a => ['border', 'comment', 'highlight', 'underline', 'strike', 'squiggly', 'area', 'cell',
     'timecomment', 'linecomment'].includes(a.type) && (a.comment || a.status === 'suggested' || a.editing ||
     a.type === 'border' || a.type === 'comment');
 

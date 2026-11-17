@@ -23,6 +23,7 @@
 
 import {debounce, uid} from 'local_fastgrade/lib/dom';
 import * as Api from 'local_fastgrade/lib/api';
+import * as Rotate from 'local_fastgrade/annotate/rotate';
 
 const clone = o => (o ? JSON.parse(JSON.stringify(o)) : o);
 
@@ -47,7 +48,69 @@ export default class AnnotationModel {
         this.undoStack = [];
         this.redoStack = [];
         this.saving = null;
+        // How each document is shown: {docref: {rot: {page: degrees}}}. Saved with the marks.
+        this.views = clone(item.views && typeof item.views === 'object' && !Array.isArray(item.views) ? item.views : {});
+        this.viewDirty = new Set();
         this.queue = debounce(() => this.flush(), 700);
+    }
+
+    /**
+     * How far a page is turned clockwise (0, 90, 180 or 270).
+     *
+     * @param {string} docref
+     * @param {number} page 1-based
+     * @returns {number}
+     */
+    rotation(docref, page) {
+        const v = this.views[docref];
+        return v && v.rot ? Rotate.norm(v.rot[page] || 0) : 0;
+    }
+
+    /**
+     * Turn a page and move its marks (and the undo history for them) so they stay on the same spot.
+     * The turn and the moved marks are saved together.
+     *
+     * @param {string} docref
+     * @param {number} page 1-based
+     * @param {number} delta degrees clockwise: 90, -90 or 180
+     * @param {number} w page width before turning, in page units
+     * @param {number} hgt page height before turning, in page units
+     * @returns {number} the new rotation
+     */
+    turn(docref, page, delta, w, hgt) {
+        const step = Rotate.norm(delta);
+        const now = Rotate.norm(this.rotation(docref, page) + step);
+        if (!step) {
+            return now;
+        }
+        const move = a => a && a.docref === docref && (a.page || 1) === page;
+        this.items.forEach(a => {
+            if (move(a) && a.anchor) {
+                a.anchor = Rotate.anchor(a.anchor, step, w, hgt);
+                this.dirty.add(a.clientid);
+                this.deleted.delete(a.clientid);
+            }
+        });
+        const fix = a => {
+            if (move(a) && a.anchor) {
+                a.anchor = Rotate.anchor(a.anchor, step, w, hgt);
+            }
+        };
+        this.undoStack.concat(this.redoStack).forEach(op => {
+            fix(op.before);
+            fix(op.after);
+        });
+        const v = this.views[docref] || (this.views[docref] = {});
+        v.rot = Object.assign({}, v.rot || {});
+        if (now) {
+            v.rot[page] = now;
+        } else {
+            delete v.rot[page];
+        }
+        this.viewDirty.add(docref);
+        this.queue();
+        this.emit('view', {docref, page});
+        return now;
     }
 
     /**
@@ -273,7 +336,7 @@ export default class AnnotationModel {
      * @returns {boolean}
      */
     pending() {
-        return this.dirty.size > 0 || this.deleted.size > 0;
+        return this.dirty.size > 0 || this.deleted.size > 0 || this.viewDirty.size > 0;
     }
 
     /**
@@ -299,14 +362,20 @@ export default class AnnotationModel {
         });
         const bankused = this.app.annotationsBankUsed ? [...this.app.annotationsBankUsed] : [];
         this.app.annotationsBankUsed = new Set();
+        const views = {};
+        this.viewDirty.forEach(d => {
+            views[d] = clone(this.views[d] || {});
+        });
+        const viewed = [...this.viewDirty];
         this.dirty.clear();
         this.deleted.clear();
+        this.viewDirty.clear();
         const store = this.app.store;
         if (store.get('savestate') !== 'saving') {
             store.set({savestate: 'saving'});
         }
         this.saving = Api.call('save_annotations', {cmid: this.app.cmid, userid: this.entry.person.id,
-            attempt: this.item.attempt, slot: this.entry.slot || 0, data: {upserts, deletes, meta, bankused}});
+            attempt: this.item.attempt, slot: this.entry.slot || 0, data: {upserts, deletes, meta, bankused, views}});
         try {
             await this.saving;
             upserts.forEach(a => delete this.meta[a.clientid]);
@@ -315,6 +384,7 @@ export default class AnnotationModel {
             // Put them back to try again.
             upserts.forEach(a => this.dirty.add(a.clientid));
             deletes.forEach(d => this.deleted.add(d));
+            viewed.forEach(d => this.viewDirty.add(d));
             store.set({savestate: navigator.onLine ? 'error' : 'offline'});
             if (navigator.onLine) {
                 setTimeout(() => this.queue(), 5000);

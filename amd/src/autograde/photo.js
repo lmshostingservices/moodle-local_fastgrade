@@ -90,7 +90,10 @@ export const block = (tab, item, mathsTask) => {
     const status = h('p.fg-small.fg-ai-status', {role: 'status'});
     // Singular wording for one photo, plural for more.
     const n = (key, a) => photos.length === 1 ? t(key + '_one', a) : t(key, a);
-    const keyOf = mode => cur.key + '|' + mode + '|' + photos.map(p => p.fileid).join(',');
+    // Each photo is sent the way the marker turned it, so the AI reads it the right way up.
+    const turns = () => photos.map(p => (app.annotations && app.annotations.rotation ?
+        app.annotations.rotation(p.docref, 1) : 0)).join(',');
+    const keyOf = mode => cur.key + '|' + mode + '|' + photos.map(p => p.fileid).join(',') + '|' + turns();
 
     const showStatus = st => {
         replace(status, h('span.fg-ai-light', {"class": st.connected ? 'is-on' : 'is-off', 'aria-hidden': 'true'}),
@@ -100,15 +103,17 @@ export const block = (tab, item, mathsTask) => {
     Api.call('analyse_images', {cmid: app.cmid, userid: cur.person.id, fileids: '', mode: 'status'})
         .then(showStatus).catch(() => showStatus({connected: false}));
 
+    const request = mode => ({cmid: app.cmid, userid: cur.person.id,
+        fileids: photos.map(p => p.fileid).join(','), rotations: turns(), mode,
+        task: textOf(item.question ? item.question.text : (tab.criteria(item).find(c => c.whole) || {}).text || '')
+            .slice(0, 2000),
+        criteriajson: JSON.stringify(crits.map(c => ({id: c.id, label: c.label, lookfor: c.lookfor})))});
+
     const run = async(mode, btn) => {
         btn.disabled = true;
         replace(body, h('p.fg-small.fg-muted', null, icon('rotate', 'fg-i-xs'), ' ', n('ai_working', photos.length)));
         try {
-            const res = await Api.call('analyse_images', {cmid: app.cmid, userid: cur.person.id,
-                fileids: photos.map(p => p.fileid).join(','), mode,
-                task: textOf(item.question ? item.question.text : (tab.criteria(item).find(c => c.whole) || {}).text || '')
-                    .slice(0, 2000),
-                criteriajson: JSON.stringify(crits.map(c => ({id: c.id, label: c.label, lookfor: c.lookfor})))});
+            const res = await Api.call('analyse_images', request(mode));
             kept.set(keyOf(mode), res);
             await draw(mode, res);
             if (typeof res.balance === 'number' && res.balance >= 0) {
@@ -121,10 +126,22 @@ export const block = (tab, item, mathsTask) => {
         btn.disabled = false;
     };
 
-    // Ask before spending credits: the first press shows the cost, the second runs.
+    // How many of the photos would really be charged: photos already read the same way cost nothing.
+    const toCharge = async mode => {
+        try {
+            const res = await Api.call('analyse_images', request(mode === 'transcribe' ? 'peektranscribe' : 'peekcriteria'));
+            const imgs = res.images || [];
+            return imgs.filter(i => !i.kept && !i.error).length;
+        } catch (e) {
+            return photos.length;
+        }
+    };
+
+    // Ask before spending credits: the first press shows what it will cost, the second runs. Nothing to charge, no
+    // question: the kept results are shown straight away.
     const costButton = (mode, label) => {
         const btn = h('button.fg-btn.is-small', {type: 'button'}, icon('sparkle', 'fg-i-sm'), label);
-        btn.onclick = () => {
+        btn.onclick = async() => {
             if (btn.dataset.confirm) {
                 delete btn.dataset.confirm;
                 replace(btn, icon('sparkle', 'fg-i-sm'), label);
@@ -132,8 +149,18 @@ export const block = (tab, item, mathsTask) => {
                 run(mode, btn);
                 return;
             }
+            btn.disabled = true;
+            const charged = await toCharge(mode);
+            btn.disabled = false;
+            if (!charged) {
+                run(mode, btn);
+                return;
+            }
+            const free = photos.length - charged;
             btn.dataset.confirm = '1';
-            replace(btn, icon('sparkle', 'fg-i-sm'), n('ai_confirm', {n: photos.length, credits: photos.length * each}));
+            replace(btn, icon('sparkle', 'fg-i-sm'), free ?
+                t(charged === 1 ? 'ai_confirm_some_one' : 'ai_confirm_some', {n: charged, credits: charged * each, kept: free}) :
+                n('ai_confirm', {n: photos.length, credits: photos.length * each}));
             btn.classList.add('is-primary');
             setTimeout(() => {
                 if (btn.dataset.confirm) {

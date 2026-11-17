@@ -79,6 +79,7 @@ class get_item extends external_api {
         $source = self::source($p['cmid']);
         $item = $source->get_item($p['userid'], $p['attempt'], $p['slot']);
         $item['annotations'] = \local_fastgrade\local\annotations::for_mark($item['markid']);
+        $item['views'] = (object)\local_fastgrade\local\views::for_mark((int)$item['markid']);
         $item['note'] = \local_fastgrade\local\notes::get($p['cmid'], $p['userid']);
         $item['integrations'] = \local_fastgrade\local\integrations::item_info($source, $item);
         return $item;

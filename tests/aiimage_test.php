@@ -126,6 +126,50 @@ final class aiimage_test extends \advanced_testcase {
     }
 
     /**
+     * A photo the marker turned is sent turned, as a new request; an unturned photo keeps its old kept result.
+     */
+    public function test_marker_turn(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_user();
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $cm = get_coursemodule_from_instance('assign', $assign->id);
+        $file = $this->photo(\context_module::instance($cm->id)->id, (int)$student->id);
+        // The photo is landscape (2400 x 1800): a quarter turn makes it portrait.
+        $size = getimagesizefromstring(aiimage::prepare($file, 90));
+        $this->assertSame([1200, 1600], [$size[0], $size[1]]);
+        $size = getimagesizefromstring(aiimage::prepare($file, 180));
+        $this->assertSame([1600, 1200], [$size[0], $size[1]]);
+        $size = getimagesizefromstring(aiimage::prepare($file));
+        $this->assertSame([1600, 1200], [$size[0], $size[1]]);
+
+        $crit = aiimage::clean_criteria([['id' => 'c0', 'label' => 'Method', 'lookfor' => ['Each step shown']]]);
+        aiimage_fake::$sent = [];
+        aiimage_fake::$answer = [200, ['creditsCharged' => 2, 'result' => ['criteria' => [
+            ['id' => 'c0', 'verdict' => 'met', 'confidence' => 0.9, 'evidence' => 'Shown.', 'lookFor' => []],
+        ]]]];
+        $plain = aiimage_fake::analyse((int)$cm->id, (int)$student->id, $file, $crit, 'criteria', 'Solve.');
+        $turned = aiimage_fake::analyse((int)$cm->id, (int)$student->id, $file, $crit, 'criteria', 'Solve.', 90);
+        $this->assertFalse($plain['cached']);
+        $this->assertFalse($turned['cached']);
+        $this->assertCount(2, aiimage_fake::$sent);
+        $this->assertNotSame(aiimage_fake::$sent[0]['body']['requestId'], aiimage_fake::$sent[1]['body']['requestId']);
+        $sent = getimagesizefromstring(base64_decode(aiimage_fake::$sent[1]['body']['image']['data']));
+        $this->assertGreaterThan($sent[0], $sent[1]);
+        // Turned back, the first kept result is used: no new charge.
+        $again = aiimage_fake::analyse((int)$cm->id, (int)$student->id, $file, $crit, 'criteria', 'Solve.', 360);
+        $this->assertTrue($again['cached']);
+        $this->assertCount(2, aiimage_fake::$sent);
+        // The free peek says what is kept, so the marker is only asked about credits that will be spent.
+        $this->assertTrue(aiimage::is_kept((int)$cm->id, $file, $crit, 'criteria', 'Solve.', 0));
+        $this->assertTrue(aiimage::is_kept((int)$cm->id, $file, $crit, 'criteria', 'Solve.', 90));
+        $this->assertFalse(aiimage::is_kept((int)$cm->id, $file, $crit, 'criteria', 'Solve.', 180));
+        $this->assertFalse(aiimage::is_kept((int)$cm->id, $file, $crit, 'transcribe', 'Solve.', 0));
+        $this->assertFalse(aiimage::is_kept((int)$cm->id + 1, $file, $crit, 'criteria', 'Solve.', 0));
+        $this->assertCount(2, aiimage_fake::$sent);
+    }
+
+    /**
      * No credits: a clear error and nothing kept. Refused: nothing kept, nothing charged.
      */
     public function test_errors(): void {

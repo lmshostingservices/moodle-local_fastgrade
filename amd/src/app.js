@@ -109,7 +109,9 @@ class App {
         await this.loadParticipants(data.participants);
         this.openFirst();
         window.addEventListener('beforeunload', e => {
-            if (this.store.get('dirty') || (this.annotations && this.annotations.pending())) {
+            // Warn only about work that is not saved anywhere yet. A saved draft is kept on the server, so leaving
+            // loses nothing even though the grade is not in the gradebook yet.
+            if (this.unsavedPanel || (this.annotations && this.annotations.pending())) {
                 this.saveDraft();
                 if (this.annotations) {
                     this.annotations.flush();
@@ -307,6 +309,7 @@ class App {
         if (this.annotations) {
             await this.annotations.flush();
         }
+        this.unsavedPanel = false;
         st.set({current: entry, item: null, dirty: false});
         this.viewer.loading();
         this.panel.loading();
@@ -372,6 +375,9 @@ class App {
      * Something changed in the marking panel.
      */
     changed() {
+        // Changes in the panel not yet saved as a draft or a grade.
+        this.unsavedPanel = true;
+        this.changeSeq = (this.changeSeq || 0) + 1;
         this.store.set({dirty: true, savestate: 'pending'});
         this.draftQueue();
     }
@@ -387,11 +393,16 @@ class App {
             return;
         }
         const data = this.panel.collect();
+        const seq = this.changeSeq;
         st.set({savestate: 'saving'});
         try {
             await Api.call('save_draft', {cmid: this.cmid, userid: cur.person.id, attempt: item.attempt,
                 slot: cur.slot || 0, data});
             cur.hasdraft = true;
+            // Saved up to here: anything typed since is still waiting.
+            if (st.get('current') === cur && this.changeSeq === seq) {
+                this.unsavedPanel = false;
+            }
             st.set({savestate: 'draft'});
             this.rail.refreshEntry(cur);
         } catch (e) {
@@ -493,6 +504,7 @@ class App {
                 item.question.sequencecheck = r.gradestate.sequencecheck;
             }
             this.activeSecs = 0;
+            this.unsavedPanel = false;
             st.set({dirty: false, savestate: 'saved'});
             this.rail.refreshEntry(cur);
             this.topbar.updateProgress();

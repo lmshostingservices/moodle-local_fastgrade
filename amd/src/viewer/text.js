@@ -26,7 +26,7 @@ import {h, icon, replace} from 'local_fastgrade/lib/dom';
 import {t} from 'local_fastgrade/lib/str';
 import * as TA from 'local_fastgrade/annotate/textanchor';
 import Annotator from 'local_fastgrade/annotate/controller';
-import {POL} from 'local_fastgrade/annotate/cards';
+import {POL} from 'local_fastgrade/annotate/polarity';
 import {tip} from 'local_fastgrade/ui/tooltip';
 
 const BLOCKS = 'p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th, dd, dt, figcaption, div';

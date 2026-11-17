@@ -53,7 +53,7 @@ const VERBS = new RegExp('^(identifies|describes|explains|applies|discusses|outl
  * @param {string} text criterion wording
  * @returns {number} 0..1
  */
-export const mathsShare = (ch, text) => {
+const mathsShare = (ch, text) => {
     const working = ch.steps ? (ch.steps - ch.slips) / ch.steps : 0;
     const answer = ch.answer && ch.answer.ok ? 1 : (ch.answer && ch.answer.partial) || 0;
     const known = ch.answer && ch.answer.ok !== null;
@@ -825,9 +825,9 @@ export default class AutoTab {
         app.panel.markAutoReady(made);
         const filled = this.prefill(results, compliance);
         if (!quiet) {
-            toast(t('auto_done', made), {type: 'ok'});
+            toast(made === 1 ? t('auto_done_one') : t('auto_done', made), {type: 'ok'});
         } else if ((made || filled) && !app.batch) {
-            toast(t('auto_ready', made + filled), {type: 'info'});
+            toast(made + filled === 1 ? t('auto_ready_one') : t('auto_ready', made + filled), {type: 'info'});
         }
     }
 
@@ -908,7 +908,8 @@ export default class AutoTab {
         let count = 0;
         // A criterion checked only by a Photo check is left to the marker (and the AI suggestion): the text rules
         // cannot see a photo, so they would wrongly fill "Not shown yet" and the lowest level.
-        results.filter(r => !this.photoOnly(r)).forEach(r => {
+        // The same goes for maths working that is handwritten in a photo or scan.
+        results.filter(r => !this.photoOnly(r) && !this.workingInPhoto(r)).forEach(r => {
             const share = this.share(r);
             // Word limits and layout matter less than whether the content is there.
             const weight = r.crit.whole && results.length > 1 && !r.maths ? 0.25 : 1;
@@ -968,6 +969,25 @@ export default class AutoTab {
         });
         // Quiz criteria come in as one criterion: spread the share across the quiz's own criteria.
         const q = item.question;
+        // Up to 1.4.2, maths working in a photo was taken as no working and 0 was suggested. Take back such a 0 when
+        // the working is in a photo, as long as the marker has not touched it.
+        let withdrawn = 0;
+        if (!count && results.some(r => this.workingInPhoto(r))) {
+            const zero = v => v !== '' && v !== null && v !== undefined && parseFloat(String(v).replace(',', '.')) === 0;
+            if (auto.grade && zero(st.grade)) {
+                st.grade = '';
+                auto.grade = false;
+                withdrawn++;
+            }
+            ((q && q.criteria) || []).forEach(c => {
+                const f = st.filling.get(c.id);
+                if (f && auto.levels.includes(c.id) && zero(f.score)) {
+                    f.score = '';
+                    auto.levels = auto.levels.filter(x => x !== c.id);
+                    withdrawn++;
+                }
+            });
+        }
         if (q && count) {
             const share = total / count;
             const mathsRes = results.find(r => r.maths);
@@ -1008,7 +1028,7 @@ export default class AutoTab {
             auto.feedback = true;
             filled++;
         }
-        if (filled) {
+        if (filled || withdrawn) {
             if (panel.tab === 'mark') {
                 panel.renderBody();
             }
@@ -1119,7 +1139,11 @@ export default class AutoTab {
             }
         });
         if (!best) {
-            res.notes.push({kind: 'maths', ok: false, label: t('maths_nolines')});
+            // Handwritten working in a photo or a scan has no typed lines to check. That is not a wrong answer: leave
+            // it to the marker (mark stamps, or Read the working with AI) instead of suggesting no marks.
+            const inPhoto = Photo.photosOf(item).length > 0 || pages.some(pg => !String(pg.text || '').trim());
+            res.notes.push({kind: 'maths', ok: false, label: t(inPhoto ? 'maths_inphoto' : 'maths_nolines'), inphoto: inPhoto});
+            res.inphoto = inPhoto;
             return;
         }
         const {pg, ch} = best;
@@ -1162,6 +1186,17 @@ export default class AutoTab {
     }
 
     /**
+     * Whether a criterion's only evidence is maths working that is in a photo or scan, so the text rules cannot judge it.
+     *
+     * @param {Object} r a result
+     * @returns {boolean}
+     */
+    workingInPhoto(r) {
+        return !!r.inphoto && !r.points.length && !r.parts.length &&
+            r.notes.every(n => n.kind === 'maths' || n.kind === 'mathsanswer');
+    }
+
+    /**
      * Whether a criterion is checked only by a Photo check (AI), so the text rules have nothing to say about it.
      *
      * @param {Object} r a result
@@ -1185,8 +1220,8 @@ export default class AutoTab {
         const blocks = results.filter(r => !this.photoOnly(r)).map(r => {
             const pct = r.total ? r.met / r.total : 0;
             const mshare = r.maths ? mathsShare(r.maths, this.mathsCritText(r.crit)) : null;
-            const state = r.maths ? (mshare >= 1 ? 'met' : (mshare > 0 ? 'partial' : 'none')) :
-                (r.total && r.met === r.total ? 'met' : (r.met > 0 ? 'partial' : 'none'));
+            const state = this.workingInPhoto(r) ? 'photo' : (r.maths ? (mshare >= 1 ? 'met' : (mshare > 0 ? 'partial' : 'none')) :
+                (r.total && r.met === r.total ? 'met' : (r.met > 0 ? 'partial' : 'none')));
             let apply = null;
             if (r.threshold && r.crit.id && !this.item.question) {
                 const cfg = r.threshold.config;
@@ -1206,8 +1241,10 @@ export default class AutoTab {
                     h('span.fg-chip', {"class": state === 'met' ? 'is-ok' : (state === 'partial' ? 'is-amber' : 'is-muted')},
                         r.maths ? t('maths_state_' + state, Math.round(mshare * 100)) :
                             t('auto_state_' + state, {met: r.met, total: r.total}))),
-                r.notes.length ? h('ul.fg-auto-list', null, r.notes.map(n => h('li', {"class": n.ok ? 'is-ok' : 'is-miss'},
-                    icon(n.ok ? 'check' : 'x', 'fg-i-xs'), h('span', null, t('rule_' + n.kind) + (n.label ? ': ' + n.label : '')),
+                r.notes.length ? h('ul.fg-auto-list', null, r.notes.map(n => h('li', {"class": n.ok ? 'is-ok' :
+                    (n.inphoto ? 'is-info' : 'is-miss')},
+                    icon(n.ok ? 'check' : (n.inphoto ? 'image' : 'x'), 'fg-i-xs'),
+                    h('span', null, t('rule_' + n.kind) + (n.label ? ': ' + n.label : '')),
                     n.detail ? h('small', null, n.detail) : null))) : null,
                 r.points.length ? h('div.fg-auto-points', null, h('div.fg-small.fg-muted', null, t('auto_keypoints')),
                     h('ul.fg-auto-list', null, r.points.map(p => h('li', {"class": 'is-' + p.status},
@@ -1238,7 +1275,8 @@ export default class AutoTab {
                         h('span', null, c.haslist ? t('auto_cites', {n: c.cites, missing: c.missing.length,
                             uncited: c.uncited.length}) : t('auto_noreflist'))) : null)));
         }
-        replace(this.out, h('p.fg-small.fg-muted', null, t('auto_made', {n: made, ms: this.results.ms})), blocks);
+        const madeText = t(made === 1 ? 'auto_made_one' : 'auto_made', {n: made, ms: this.results.ms});
+        replace(this.out, h('p.fg-small.fg-muted', null, madeText), blocks);
     }
 
     /**
@@ -1253,7 +1291,7 @@ export default class AutoTab {
             model.update(a.clientid, {status: 'active'});
             n++;
         });
-        toast(t('auto_accepted', n), {type: 'ok'});
+        toast(n === 1 ? t('auto_accepted_one') : t('auto_accepted', n), {type: 'ok'});
     }
 
     /**

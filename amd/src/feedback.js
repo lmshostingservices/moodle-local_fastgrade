@@ -52,7 +52,7 @@ export const init = selector => {
         store: new Store({prefs: {margin: 'cards'}, savestate: 'idle', dirty: false, lookfors: {}}),
         panel: null,
     };
-    const item = {docs: fb.docs, annotations: fb.annotations, attempt: fb.attempt, integrations: {}};
+    const item = {docs: fb.docs, annotations: fb.annotations, views: fb.views || {}, attempt: fb.attempt, integrations: {}};
     app.annotations = new AnnotationModel(app, {person: {id: boot.me.id}, slot: 0}, item);
     const host = new ViewerHost(app);
     const counts = {improvement: 0, positive: 0, neutral: 0};

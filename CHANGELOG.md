@@ -2,6 +2,55 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
+## [v1.5.3] - 2026-11-17
+
+### Fixes
+
+- AI photo checks: the confirm button now only asks about credits that will be spent. Photos already read the same way (same photo, turn, task and checks) cost nothing, so they are left out of the price ("Send 1 photo for 2 credits? 1 already read, no charge."), and when everything is already read the results show straight away with no question. Before, it said "Send 2 photos for 4 credits?" and then charged nothing.
+- Leaving the marking screen no longer shows the browser's "Leave site?" warning when the work is already saved as a draft. It still warns when a change has not been saved yet (still saving, failed or offline) or marks are still being saved.
+
+## [v1.5.2] - 2026-11-17
+
+### Fixes (found testing on a live site)
+
+- PDF pages could stay drawn at the wrong size when the screen re-fitted while a page was still drawing (for example as the layout settles just after opening, on a slower server). The page was recorded as drawn at the new size, so it was never redrawn: it looked slightly too small, and word selection, highlights and auto-marking boxes sat off the printed words. The page now records the size it was actually drawn at and redraws. This was in earlier versions too.
+- On themes that set one font on everything (with !important), the invisible text on PDF pages was measured in one font and shown in another, so it ran past the printed words (up to a few percent per line). The text layer now keeps PDF.js's own font, spacing and weight.
+
+## [v1.5.1] - 2026-11-17
+
+### Fixes
+
+- Built with Moodle's own JavaScript build (Grunt). Moodle's build keeps only the default export of a module that also has named exports, so the four modules that mixed them were split or tidied. Without this, marks on typed answers stopped drawing after the first one.
+- Submissions opened before upgrading still showed the suggested 0 that earlier versions made for maths working in a photo, because the saved draft was reused. When the working is in a photo, an untouched suggested 0 (grade or quiz criterion) is now taken back. Grades and scores a marker typed or approved are never changed.
+
+### Tested
+
+- Clean Moodle 5.3.1 site with v1.4.2 and marks made under it, upgraded from the release ZIP, then a full browser test pass (see the release notes). Also checked on Moodle 4.5 LTS.
+
+## [v1.5.0] - 2026-11-16
+
+### Rotate photos and pages
+
+- Rotate left and Rotate right buttons in the marking toolbar (Shift+L and Shift+R) turn a photo a quarter turn, or the PDF page in view. Shift-click turns every page of a PDF. Requested by a teacher marking photographed maths working that arrived sideways.
+- Marks already on the page turn with it and stay on the same words, and undo and redo keep working after a turn.
+- The turn is saved with the marks (new `viewjson` field on the marking record, saved in the same request as the marks), so other markers and the student's feedback page show the photo the same way. The student cannot turn it.
+- After a turn, the line finder used by the M1, A1, B1, ft and A0 stamps reads the lines of working again, so stamps go to the end of each line.
+- Photo check (AI) and Read the working with AI send the photo turned the way the marker turned it. A turned photo is a new request; turning it back uses the kept result, with no new charge.
+
+### Fixes
+
+- Maths working in a photo or scan is no longer treated as "no working": auto-marking used to suggest 0 marks for every photo answer. The Auto tab now shows "In a photo" and leaves the mark to the marker.
+- Download with marks now works for photos (the button was missing, and the student's download held only the comments list). The PDF shows the photo the right way up with its marks.
+- Download with marks no longer drops every mark on a PDF page that has its own rotation (common for landscape pages and scans). Turned pages are saved turned, with stamps and text upright.
+- Clicking and selecting words on a PDF page with its own rotation now works: the invisible text layer was the wrong size and mirrored, so highlights and auto-marking suggestions landed in the wrong place.
+- The toolbar wraps onto a second row in a narrow pane instead of hiding undo, zoom, find and download off the edge.
+- "1 suggestion" instead of "1 suggestions" in the auto-marking messages.
+- Tests: the activity deletion test uses the Moodle 5.2+ API when it is there.
+
+### Tested
+
+- Moodle 5.3.1 (PostgreSQL 17, PHP 8.3) upgraded from v1.4.2 with data in place, and a fresh install; PHPUnit suite passes (33 tests). Checked in Chrome with phone photos (EXIF portrait, sideways with no EXIF, upside down), a scanned PDF and a typed PDF with /Rotate 90, in a quiz and an assignment, as marker and as student.
+
 ## [v1.4.2] - 2026-11-09
 
 ### Changed (Moodle Plugins directory review, MMRT-256)

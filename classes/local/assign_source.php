@@ -585,6 +585,7 @@ class assign_source extends source {
         return [
             'docs' => $this->build_docs($sub),
             'annotations' => $annotations,
+            'views' => (object)views::for_mark((int)$mark->id),
             'attempt' => (int)$mark->attempt,
             'gradestate' => $this->get_grade_state($userid, (int)$mark->attempt),
         ];
