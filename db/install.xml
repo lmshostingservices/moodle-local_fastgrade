@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/fastgrade/db" VERSION="20261116" COMMENT="XMLDB file for Moodle local/fastgrade"
+<XMLDB PATH="local/fastgrade/db" VERSION="20261121" COMMENT="XMLDB file for Moodle local/fastgrade"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -201,6 +201,77 @@
       <INDEXES>
         <INDEX NAME="cmkey" UNIQUE="false" FIELDS="cmid, requestkey"/>
         <INDEX NAME="cmuser" UNIQUE="false" FIELDS="cmid, userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_ifset" COMMENT="Instant Feedback set-up for an assignment (qbeid 0) or a quiz essay question (question bank entry).">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="qbeid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="question_bank_entries.id for a quiz question, 0 for an assignment"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="configjson" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Concepts, wording, messages, mode and limits. Never sent to students."/>
+        <FIELD NAME="rev" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Ruleset version, kept with each practice attempt"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cmq_uix" UNIQUE="true" FIELDS="cmid, qbeid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_ifattempt" COMMENT="Instant Feedback practice checks. Kept apart from grades; never changes a grade.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="qbeid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student"/>
+        <FIELD NAME="itemkey" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="q[quiz attempt id]s[slot] or a[submission attempt number]"/>
+        <FIELD NAME="attemptno" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="draft" SEQUENCE="false" COMMENT="draft or submitted"/>
+        <FIELD NAME="engine" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="rules" SEQUENCE="false" COMMENT="rules, ai, or rules after an AI fallback"/>
+        <FIELD NAME="responsehash" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="response" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="The answer checked; empty when practice history is off"/>
+        <FIELD NAME="resultjson" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="What the student was shown"/>
+        <FIELD NAME="rulesjson" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Free rule-based result per item, kept to compare with AI"/>
+        <FIELD NAME="detected" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="total" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="score" TYPE="number" LENGTH="6" NOTNULL="false" SEQUENCE="false" DECIMALS="2" COMMENT="Practice score 0-100, when shown"/>
+        <FIELD NAME="rulesrev" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="enginever" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="credits" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="item_uix" UNIQUE="true" FIELDS="cmid, userid, qbeid, itemkey, attemptno"/>
+        <INDEX NAME="cmq_ix" UNIQUE="false" FIELDS="cmid, qbeid"/>
+        <INDEX NAME="user_ix" UNIQUE="false" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_fastgrade_aitext" COMMENT="Results of optional AI text marking through LMS Labs AI, kept so the same answer is never charged twice.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Student whose answer it is"/>
+        <FIELD NAME="audience" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="marker" SEQUENCE="false" COMMENT="marker or student"/>
+        <FIELD NAME="requestkey" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="resultjson" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="credits" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cmkey" UNIQUE="false" FIELDS="cmid, requestkey"/>
+        <INDEX NAME="cmuser" UNIQUE="false" FIELDS="cmid, userid"/>
+        <INDEX NAME="time_ix" UNIQUE="false" FIELDS="audience, timecreated"/>
       </INDEXES>
     </TABLE>
   </TABLES>

@@ -1,0 +1,633 @@
+{
+  "about": "Cases both auto-marking engines must agree on: the assessor's browser engine (amd/src/autograde) and the server engine used by Instant Feedback (classes/local/instant). Run by tests/engine_spec_test.php and tests/js/engine_spec.mjs. parts_js runs in the browser engine only (the server does not use part checks).",
+  "fold": [
+    [
+      "colour",
+      "color"
+    ],
+    [
+      "behaviours",
+      "behaviors"
+    ],
+    [
+      "favourite",
+      "favorite"
+    ],
+    [
+      "centre",
+      "center"
+    ],
+    [
+      "metres",
+      "meters"
+    ],
+    [
+      "organise",
+      "organize"
+    ],
+    [
+      "organisation",
+      "organization"
+    ],
+    [
+      "realised",
+      "realized"
+    ],
+    [
+      "analyse",
+      "analyze"
+    ],
+    [
+      "paediatric",
+      "pediatric"
+    ],
+    [
+      "licence",
+      "license"
+    ],
+    [
+      "programme",
+      "program"
+    ],
+    [
+      "catalogue",
+      "catalog"
+    ],
+    [
+      "exercise",
+      "exercise"
+    ],
+    [
+      "promise",
+      "promise"
+    ],
+    [
+      "supervised",
+      "supervised"
+    ],
+    [
+      "wise",
+      "wise"
+    ],
+    [
+      "noise",
+      "noise"
+    ]
+  ],
+  "slip": [
+    [
+      "equiptment",
+      "equipment",
+      true
+    ],
+    [
+      "isolaton",
+      "isolation",
+      true
+    ],
+    [
+      "procedrue",
+      "procedure",
+      true
+    ],
+    [
+      "conduct",
+      "conduit",
+      false
+    ],
+    [
+      "hazard",
+      "hazards",
+      false
+    ],
+    [
+      "machinery",
+      "machinery",
+      false
+    ],
+    [
+      "ventilaton",
+      "ventilation",
+      true
+    ],
+    [
+      "inspection",
+      "injection",
+      false
+    ],
+    [
+      "protectoin",
+      "protection",
+      true
+    ]
+  ],
+  "phrase": [
+    {
+      "text": "Before starting I isolate the power supply.",
+      "phrase": "isolate the power",
+      "want": "found"
+    },
+    {
+      "text": "Do not isolate the power supply before starting.",
+      "phrase": "isolate the power",
+      "want": "negated"
+    },
+    {
+      "text": "You should never wear PPE near the machine.",
+      "phrase": "wear PPE",
+      "want": "negated"
+    },
+    {
+      "text": "Never forget to wear PPE near the machine.",
+      "phrase": "wear PPE",
+      "want": "found"
+    },
+    {
+      "text": "Wearing PPE is not necessary for this task.",
+      "phrase": "wear PPE",
+      "want": "negated"
+    },
+    {
+      "text": "PPE is optional when the guard is on.",
+      "phrase": "PPE",
+      "want": "negated"
+    },
+    {
+      "text": "Do not remove the machine guard while it runs.",
+      "phrase": "do not remove the guard",
+      "want": "found"
+    },
+    {
+      "text": "Remove the machine guard so you can see better.",
+      "phrase": "do not remove the guard",
+      "want": "negated"
+    },
+    {
+      "text": "Press the emergency stop button before approaching the machine.",
+      "phrase": "press the emergency stop",
+      "want": "found"
+    },
+    {
+      "text": "Do not press the emergency stop button before approaching the machine.",
+      "phrase": "press the emergency stop",
+      "want": "negated"
+    },
+    {
+      "text": "Not only wear gloves but also wear glasses.",
+      "phrase": "wear gloves",
+      "want": "found"
+    },
+    {
+      "text": "I would not stop the machine, but I would report the fault.",
+      "phrase": "report the fault",
+      "want": "found"
+    },
+    {
+      "text": "I would not stop the machine, but I would report the fault.",
+      "phrase": "stop the machine",
+      "want": "negated"
+    },
+    {
+      "text": "Check the equiptment before use.",
+      "phrase": "check the equipment",
+      "want": "found"
+    },
+    {
+      "text": "Work without consulting the workers.",
+      "phrase": "consult workers",
+      "want": "negated"
+    },
+    {
+      "text": "Avoid contact with the chemical.",
+      "phrase": "avoid contact",
+      "want": "found"
+    },
+    {
+      "text": "Never avoid contact with the supervisor.",
+      "phrase": "avoid contact",
+      "want": "negated"
+    },
+    {
+      "text": "Use a ladder instead of scaffolding.",
+      "phrase": "scaffolding",
+      "want": "negated"
+    },
+    {
+      "text": "Use a ladder instead of scaffolding.",
+      "phrase": "use a ladder",
+      "want": "found"
+    },
+    {
+      "text": "The colour coded tags are checked at the centre.",
+      "phrase": "color coded tags",
+      "want": "found"
+    },
+    {
+      "text": "Hazards were identified.",
+      "phrase": "risk assessment",
+      "want": "none"
+    },
+    {
+      "text": "I never wear PPE and I do not need to keep the work area clear.",
+      "phrase": "wear PPE",
+      "want": "negated"
+    },
+    {
+      "text": "I never wear PPE and I do not need to keep the work area clear.",
+      "phrase": "keep the work area clear",
+      "want": "negated"
+    },
+    {
+      "text": "Wearing PPE is not necessary for this task.",
+      "phrase": "wear PPE",
+      "want": "negated"
+    },
+    {
+      "text": "Workers must not enter the area unless the machine is isolated.",
+      "phrase": "machine is isolated",
+      "want": "found"
+    },
+    {
+      "text": "Don't forget to isolate the power before you start.",
+      "phrase": "isolate the power",
+      "want": "found"
+    },
+    {
+      "text": "There is no reason to skip the pre-start check.",
+      "phrase": "pre-start check",
+      "want": "found"
+    },
+    {
+      "text": "Never skip the pre-start check.",
+      "phrase": "pre-start check",
+      "want": "found"
+    },
+    {
+      "text": "I skip the pre-start check when I am busy.",
+      "phrase": "pre-start check",
+      "want": "negated"
+    }
+  ],
+  "evaluate": [
+    {
+      "name": "all key words but negated",
+      "text": "Do not inspect the equipment. Never wear PPE. You don't need to keep the area clear.",
+      "rules": [
+        {
+          "kind": "anyof",
+          "config": {
+            "terms": [
+              "inspect the equipment",
+              "wear PPE|personal protective equipment",
+              "keep the area clear"
+            ],
+            "min": 3
+          }
+        }
+      ],
+      "met": 0,
+      "total": 1
+    },
+    {
+      "name": "all key words positive",
+      "text": "First inspect the equipment. Then wear PPE and keep the area clear.",
+      "rules": [
+        {
+          "kind": "anyof",
+          "config": {
+            "terms": [
+              "inspect the equipment",
+              "wear PPE|personal protective equipment",
+              "keep the area clear"
+            ],
+            "min": 3
+          }
+        }
+      ],
+      "met": 1,
+      "total": 1
+    },
+    {
+      "name": "contradiction not counted",
+      "text": "Wear PPE at all times. Actually you do not need to wear PPE.",
+      "rules": [
+        {
+          "kind": "term",
+          "config": {
+            "terms": [
+              "wear PPE"
+            ],
+            "min": 1
+          }
+        }
+      ],
+      "met": 0,
+      "total": 1
+    },
+    {
+      "name": "safe negation of a banned statement",
+      "text": "Never remove the machine guard.",
+      "rules": [
+        {
+          "kind": "mustnot",
+          "config": {
+            "terms": [
+              "remove the machine guard"
+            ]
+          }
+        }
+      ],
+      "met": 1,
+      "total": 1
+    },
+    {
+      "name": "banned statement",
+      "text": "Remove the machine guard to clear the jam.",
+      "rules": [
+        {
+          "kind": "mustnot",
+          "config": {
+            "terms": [
+              "remove the machine guard"
+            ]
+          }
+        }
+      ],
+      "met": 0,
+      "total": 1
+    },
+    {
+      "name": "order right",
+      "text": "Isolate the power, then apply the lock, then test for dead.",
+      "rules": [
+        {
+          "kind": "sequence",
+          "config": {
+            "terms": [
+              "isolate|switch off",
+              "lock|lockout",
+              "test for dead|test"
+            ]
+          }
+        }
+      ],
+      "met": 1,
+      "total": 1
+    },
+    {
+      "name": "order wrong",
+      "text": "Test for dead, then apply the lock and isolate the power.",
+      "rules": [
+        {
+          "kind": "sequence",
+          "config": {
+            "terms": [
+              "isolate|switch off",
+              "lock|lockout",
+              "test for dead"
+            ]
+          }
+        }
+      ],
+      "met": 0,
+      "total": 1
+    },
+    {
+      "name": "value right",
+      "text": "Single phase supply in Australia is 230 V.",
+      "rules": [
+        {
+          "kind": "value",
+          "config": {
+            "terms": [
+              "single phase"
+            ],
+            "unit": "v|volts|volt",
+            "vmin": 220,
+            "vmax": 240
+          }
+        }
+      ],
+      "met": 1,
+      "total": 1
+    },
+    {
+      "name": "value wrong",
+      "text": "Single phase supply in Australia is 415 volts.",
+      "rules": [
+        {
+          "kind": "value",
+          "config": {
+            "terms": [
+              "single phase"
+            ],
+            "unit": "v|volts|volt",
+            "vmin": 220,
+            "vmax": 240
+          }
+        }
+      ],
+      "met": 0,
+      "total": 1
+    },
+    {
+      "name": "misspelt key words still count",
+      "text": "Check the equiptment and follow the isolaton procedrue.",
+      "rules": [
+        {
+          "kind": "anyof",
+          "config": {
+            "terms": [
+              "equipment",
+              "isolation",
+              "procedure"
+            ],
+            "min": 3
+          }
+        }
+      ],
+      "met": 1,
+      "total": 1
+    },
+    {
+      "name": "ideas only when stated",
+      "text": "No consultation took place and there was no risk assessment.",
+      "rules": [
+        {
+          "kind": "ideas",
+          "config": {
+            "terms": [
+              "consultation",
+              "assessment"
+            ],
+            "min": 2
+          }
+        }
+      ],
+      "met": 0,
+      "total": 1
+    }
+  ],
+  "coverage": [
+    {
+      "text": "Workers were consulted about the new machine through the HSR.",
+      "points": [
+        "Consult workers and the HSR"
+      ],
+      "status": [
+        "covered"
+      ]
+    },
+    {
+      "text": "Workers were not consulted about the new machine and the HSR was not told.",
+      "points": [
+        "Consult workers and the HSR"
+      ],
+      "status": [
+        "partial"
+      ]
+    }
+  ],
+  "analyse": [
+    {
+      "name": "blank",
+      "text": "",
+      "codes": [
+        "empty"
+      ]
+    },
+    {
+      "name": "random typing",
+      "text": "asdfgh qwrtzp kkkkk xcvbnm",
+      "codes": [
+        "gibberish"
+      ]
+    },
+    {
+      "name": "keyword list",
+      "text": "PPE inspection guarding isolation lockout signage",
+      "codes": [
+        "keywords"
+      ]
+    },
+    {
+      "name": "padding",
+      "text": "You must wear PPE when operating the lathe. You must wear PPE when operating the lathe. You must wear PPE when operating the lathe.",
+      "codes": [
+        "repeat"
+      ]
+    },
+    {
+      "name": "copied question",
+      "question": "Explain three safety precautions taken before operating industrial machinery.",
+      "text": "Safety precautions taken before operating industrial machinery.",
+      "codes": [
+        "copied"
+      ]
+    },
+    {
+      "name": "template unchanged",
+      "template": "Precaution 1: Precaution 2: Precaution 3:",
+      "text": "Precaution 1: Precaution 2: Precaution 3:",
+      "codes": [
+        "template"
+      ]
+    },
+    {
+      "name": "no reason",
+      "question": "Explain why guards are fitted to machines.",
+      "text": "Guards are fitted to machines on the moving parts.",
+      "codes": [
+        "noreason"
+      ]
+    },
+    {
+      "name": "reason given",
+      "question": "Explain why guards are fitted to machines.",
+      "text": "Guards are fitted to stop hands reaching the moving parts.",
+      "codes": []
+    },
+    {
+      "name": "no example",
+      "question": "Give an example of an engineering control.",
+      "text": "Engineering controls change the plant or the process.",
+      "codes": [
+        "noexample"
+      ]
+    },
+    {
+      "name": "too few items",
+      "question": "List three safety precautions.",
+      "items": 2,
+      "text": "Wear PPE. Check the guard.",
+      "codes": [
+        "count"
+      ]
+    },
+    {
+      "name": "vague",
+      "text": "Just be careful and be safe and stuff around the machine.",
+      "codes": [
+        "vague"
+      ]
+    },
+    {
+      "name": "hedged",
+      "text": "I think maybe you check the guard but I'm not sure.",
+      "codes": [
+        "hedge"
+      ]
+    },
+    {
+      "name": "text speak",
+      "text": "u should check ur gloves b4 using the lathe cos its safer",
+      "codes": [
+        "textspeak"
+      ]
+    },
+    {
+      "name": "off topic",
+      "question": "Explain how to isolate a machine before maintenance.",
+      "topic": [
+        "isol",
+        "lock",
+        "tag"
+      ],
+      "text": "My favourite football team won the grand final on the weekend and we celebrated with a barbecue.",
+      "codes": [
+        "offtopic"
+      ]
+    },
+    {
+      "name": "good answer",
+      "question": "Explain three precautions before operating machinery.",
+      "items": 3,
+      "text": "I inspect the machine for damage so that faults are found early. I wear PPE such as glasses because chips can fly. I clear the area to prevent trips.",
+      "codes": []
+    }
+  ],
+  "parts_js": [
+    {
+      "name": "restating the question with the key steps negated is not an answer",
+      "question": "Explain three safety precautions you take before operating a lathe, and why each one matters.",
+      "text": "Before operating the lathe I do not inspect the machine, because that takes too long. I never wear PPE and I do not need to keep the work area clear.",
+      "parts": [
+        "Explain three safety precautions: safety, precautions, operating, lathe"
+      ],
+      "ok": [
+        false
+      ]
+    },
+    {
+      "name": "a real answer to the same part",
+      "question": "Explain three safety precautions you take before operating a lathe, and why each one matters.",
+      "text": "Before operating the lathe I inspect the machine for damage and loose parts, because a loose part can fly off.",
+      "parts": [
+        "Explain three safety precautions: safety, precautions, operating, lathe"
+      ],
+      "ok": [
+        true
+      ]
+    }
+  ]
+}

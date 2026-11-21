@@ -120,8 +120,33 @@ class provider implements
                 'image' => 'privacy:metadata:lmslabsai:image',
                 'task' => 'privacy:metadata:lmslabsai:task',
                 'criteria' => 'privacy:metadata:lmslabsai:criteria',
+                'response' => 'privacy:metadata:lmslabsai:response',
             ],
             'privacy:metadata:lmslabsai'
+        );
+        $c->add_database_table(
+            'local_fastgrade_ifattempt',
+            [
+                'userid' => 'privacy:metadata:ifattempt:userid',
+                'response' => 'privacy:metadata:ifattempt:response',
+                'resultjson' => 'privacy:metadata:ifattempt:resultjson',
+                'timecreated' => 'privacy:metadata:ifattempt:timecreated',
+            ],
+            'privacy:metadata:ifattempt'
+        );
+        $c->add_database_table(
+            'local_fastgrade_aitext',
+            [
+                'userid' => 'privacy:metadata:aitext:userid',
+                'usermodified' => 'privacy:metadata:aitext:usermodified',
+                'resultjson' => 'privacy:metadata:aitext:resultjson',
+            ],
+            'privacy:metadata:aitext'
+        );
+        $c->add_database_table(
+            'local_fastgrade_ifset',
+            ['usermodified' => 'privacy:metadata:usermodified'],
+            'privacy:metadata:lookfor'
         );
         $c->add_database_table(
             'local_fastgrade_lookfor',
@@ -166,7 +191,9 @@ class provider implements
                  WHERE cm.id IN (SELECT cmid FROM {local_fastgrade_mark} WHERE userid = :u1 OR markerid = :u2)
                     OR cm.id IN (SELECT cmid FROM {local_fastgrade_annot} WHERE authorid = :u3)
                     OR cm.id IN (SELECT cmid FROM {local_fastgrade_note} WHERE userid = :u4 OR authorid = :u5)
-                    OR cm.id IN (SELECT cmid FROM {local_fastgrade_aiimage} WHERE userid = :u6 OR usermodified = :u7)";
+                    OR cm.id IN (SELECT cmid FROM {local_fastgrade_aiimage} WHERE userid = :u6 OR usermodified = :u7)
+                    OR cm.id IN (SELECT cmid FROM {local_fastgrade_ifattempt} WHERE userid = :u8)
+                    OR cm.id IN (SELECT cmid FROM {local_fastgrade_aitext} WHERE userid = :u9 OR usermodified = :u10)";
         $list->add_from_sql(
             $sql,
             [
@@ -178,6 +205,9 @@ class provider implements
                 'u5' => $userid,
                 'u6' => $userid,
                 'u7' => $userid,
+                'u8' => $userid,
+                'u9' => $userid,
+                'u10' => $userid,
             ]
         );
         $list->add_from_sql(
@@ -219,6 +249,9 @@ class provider implements
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_fastgrade_note} WHERE cmid = :cmid', $p);
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_fastgrade_aiimage} WHERE cmid = :cmid', $p);
         $userlist->add_from_sql('usermodified', 'SELECT usermodified FROM {local_fastgrade_aiimage} WHERE cmid = :cmid', $p);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_fastgrade_ifattempt} WHERE cmid = :cmid', $p);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_fastgrade_aitext} WHERE cmid = :cmid', $p);
+        $userlist->add_from_sql('usermodified', 'SELECT usermodified FROM {local_fastgrade_aitext} WHERE cmid = :cmid', $p);
     }
 
     /**
@@ -306,12 +339,27 @@ class provider implements
                     'time' => transform::datetime($r->timecreated),
                 ];
             }
+            $practice = [];
+            foreach ($DB->get_records('local_fastgrade_ifattempt', ['cmid' => $cmid, 'userid' => $userid], 'id') as $r) {
+                $practice[] = [
+                    'check' => (int)$r->attemptno,
+                    'answer' => (string)$r->response,
+                    'feedback' => json_decode((string)$r->resultjson, true),
+                    'time' => transform::datetime($r->timecreated),
+                ];
+            }
+            $aitext = [];
+            foreach ($DB->get_records('local_fastgrade_aitext', ['cmid' => $cmid, 'userid' => $userid], 'id') as $r) {
+                $aitext[] = ['result' => json_decode($r->resultjson, true), 'time' => transform::datetime($r->timecreated)];
+            }
             writer::with_context($ctx)->export_data(
                 [get_string('pluginname', 'local_fastgrade')],
                 (object)[
                     'marking' => $out,
                     'note' => $note ? $note->note : '',
                     'aiimages' => $aiout,
+                    'instantfeedback' => $practice,
+                    'aitext' => $aitext,
                 ]
             );
         }
@@ -363,6 +411,8 @@ class provider implements
         $DB->delete_records('local_fastgrade_mark', ['cmid' => $cmid]);
         $DB->delete_records('local_fastgrade_note', ['cmid' => $cmid]);
         $DB->delete_records('local_fastgrade_aiimage', ['cmid' => $cmid]);
+        $DB->delete_records('local_fastgrade_ifattempt', ['cmid' => $cmid]);
+        $DB->delete_records('local_fastgrade_aitext', ['cmid' => $cmid]);
     }
 
     /**
@@ -418,6 +468,9 @@ class provider implements
         $DB->delete_records_select('local_fastgrade_note', "cmid = :cmid AND userid $in", $p);
         $DB->delete_records_select('local_fastgrade_aiimage', "cmid = :cmid AND userid $in", $p);
         $DB->set_field_select('local_fastgrade_aiimage', 'usermodified', 0, "cmid = :cmid AND usermodified $in", $p);
+        $DB->delete_records_select('local_fastgrade_ifattempt', "cmid = :cmid AND userid $in", $p);
+        $DB->delete_records_select('local_fastgrade_aitext', "cmid = :cmid AND userid $in", $p);
+        $DB->set_field_select('local_fastgrade_aitext', 'usermodified', 0, "cmid = :cmid AND usermodified $in", $p);
         $DB->set_field_select('local_fastgrade_mark', 'markerid', 0, "cmid = :cmid AND markerid $in", $p);
         $DB->set_field_select('local_fastgrade_annot', 'authorid', 0, "cmid = :cmid AND authorid $in", $p);
         $DB->set_field_select('local_fastgrade_note', 'authorid', 0, "cmid = :cmid AND authorid $in", $p);

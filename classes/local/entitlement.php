@@ -105,4 +105,26 @@ class entitlement {
             new \moodle_url('/admin/settings.php', ['section' => 'local_fastgrade'])
         );
     }
+
+    /**
+     * Require access for student-facing features (Instant Feedback). A positive check is shared across
+     * the site for an hour, so students do not each cause a call to LMS Labs. The check itself is the
+     * same one markers use.
+     *
+     * @return void
+     */
+    public static function require_site_access(): void {
+        global $CFG;
+        $credentials = static::credentials();
+        $fingerprint = hash('sha256', $CFG->wwwroot . "\0" . implode("\0", $credentials));
+        $cache = \cache::make('local_fastgrade', 'entitlement');
+        if ($cache->get('ok') === $fingerprint) {
+            return;
+        }
+        if ($credentials[0] !== '' && $credentials[1] !== '' && static::verify($credentials)) {
+            $cache->set('ok', $fingerprint);
+            return;
+        }
+        throw new \moodle_exception('unlockrequired', 'local_fastgrade');
+    }
 }

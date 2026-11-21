@@ -33,11 +33,30 @@ The marker reviews, edits and approves the draft. Nothing reaches a student unti
 
 **Maths marking (no AI).** A built-in maths engine checks typed working line by line, flags the first step that does not follow, credits follow-through and checks the final answer by value. It covers equations, indices, logs, surds, the quadratic formula, differentiation, inequalities, simultaneous equations and integration. Criteria about method are judged on the working and criteria about accuracy on the answer. Photographed working is marked with M1, A1, B1, ft and A0 stamps that add up to the grade. The engine is CortexJS Compute Engine (MIT), bundled and run in the marker's browser.
 
+**Reads answers carefully.** Auto-marking only counts a key phrase when the student says it the right way round. "Do not isolate the power" is not evidence for "isolate the power", an answer that says both is flagged, and the marker is told why. Small spelling slips and UK/US spellings still match. Checks on the answer as a whole flag key-word lists, padding, a copied question or an unchanged template, off-topic answers, missing reasons or examples, too few items, and vague, hedged or text-speak wording. Rules can also check that steps come in the right order and that values (such as 230 V) are in range.
+
+**Compare with AI (optional, LMS Labs credits).** Off by default. When a site turns it on, the Auto tab shows the free rules and LMS Labs AI side by side for each criterion, with where they agree. 1 credit per answer, only when a marker confirms.
+
 **Download all submissions.** Download the whole assignment, or one quiz essay question, as a ZIP. Choose the latest version only or every version, with one folder per student.
 
 **Optional AI photo checks (LMS Labs credits).** Off by default. When a site turns it on and a teacher adds a Photo check (AI) to a criterion, a marker can ask LMS Labs AI whether each photo shows what the criterion asks for, or have it type out handwritten maths working for the maths engine to check. 2 LMS Labs credits per photo; the marker confirms the cost every time and approves every result.
 
 **Integrations.** Fast Grade shows EssayGuard and DocGuard results when those plugins are installed. It adds marking metrics and reports to Beacon (2.10 or later).
+
+## Instant Feedback for students
+
+Off by default (*Fast Grade settings > Instant Feedback for students*). When it is on, a teacher can set up any assignment with online text, or any essay question in a quiz, from **Instant Feedback** in the activity's menu:
+
+- the ideas the answer should contain, with the wording that shows each one, messages for found, part-way and missing, up to three hints and a learning resource to link
+- terms that must be used (spelt correctly), values to check, and incorrect or unsafe statements to flag
+- the feedback mode (guidance only, guidance with a practice score, or hints only), checks per answer, and for assignments whether feedback is offered while writing, after submitting, or both
+- **Fill from this activity** turns the grader information, rubric or auto-marking checks into ideas to edit
+- **Try it** shows exactly what a student would see for any sample answer
+- **Practice report**: checks, students, gain from first to last check, ideas missed most often, answers to look at, and each student's checks
+
+Students press **Check my answer** under the essay question or online text box. The answer is checked on the server with the same rules as auto-marking, so the wording looked for is never sent to the browser. Checking does not save, submit or grade anything. It is not offered in quizzes that use a secure browser, after a quiz attempt is finished, or (unless the site allows it) once work has been graded. Answers that cannot be judged (blank, random typing, off topic) are sent to the teacher rather than scored.
+
+The standard checks are free and use no AI. A teacher may choose AI instead for an activity when the site allows it (1 LMS Labs credit per check, paid by the site, with a daily limit). The free rules still run on every check so teachers can compare them in the report, and students get them whenever AI is unavailable.
 
 ## The report
 
@@ -83,19 +102,26 @@ Levels use one colour scale everywhere:
 | `local/fastgrade:managecoursebank` | Editing teacher, Manager | Edit the course comment bank. |
 | `local/fastgrade:managesitebank` | Manager | Edit the site comment bank. |
 | `local/fastgrade:viewfeedback` | Student, Teacher, Editing teacher, Manager | See annotated feedback on returned work. |
-| `local/fastgrade:viewreport` | Teacher, Editing teacher, Manager | Open the report and export it. |
+| `local/fastgrade:viewreport` | Teacher, Editing teacher, Manager | Open the report and export it, and the Instant Feedback practice report. |
+| `local/fastgrade:useinstantfeedback` | Student, Teacher, Editing teacher, Manager | Check practice answers with Instant Feedback where a teacher has set it up. |
+
+Instant Feedback set-up uses `local/fastgrade:managecriteria`.
 
 ## Privacy and backup
 
 - The privacy API covers every table.
 - Annotations, feedback history and marking data are included in activity backup and restore. Rubric criteria are remapped on restore.
 - Deleting an activity or course removes its Fast Grade data.
+- Instant Feedback set-ups are backed up with the activity. Practice checks are kept apart from grades and are covered by the privacy API; they are not included in backups.
 
 ## Tests
 
 ```
 vendor/bin/phpunit --testsuite local_fastgrade_testsuite
+node local/fastgrade/tests/js/engine_spec.mjs
 ```
+
+Both auto-marking engines (the browser one used by markers and the server one used by Instant Feedback) are run against the same cases in `tests/fixtures/engine_spec.json`.
 
 ## Licence
 

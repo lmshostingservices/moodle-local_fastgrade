@@ -53,6 +53,11 @@ class backup_local_fastgrade_plugin extends backup_local_plugin {
         $lookfors->add_child($lookfor);
         $wrapper->add_child($qcrits);
         $qcrits->add_child($qcrit);
+        $ifsets = new backup_nested_element('ifsets');
+        $ifset = new backup_nested_element('ifset', ['id'], ['qbeid', 'enabled', 'configjson', 'rev', 'timemodified']);
+        $wrapper->add_child($ifsets);
+        $ifsets->add_child($ifset);
+        $ifset->set_source_table('local_fastgrade_ifset', ['cmid' => backup::VAR_MODID]);
         $lookfor->set_source_table('local_fastgrade_lookfor', ['cmid' => backup::VAR_MODID], 'sortorder ASC');
         $qcrit->set_source_table('local_fastgrade_qcrit', ['cmid' => backup::VAR_MODID]);
 

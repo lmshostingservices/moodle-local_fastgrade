@@ -2,6 +2,54 @@
 
 All notable changes to the Fast Grade (local_fastgrade) plugin are documented here.
 
+## [v1.6.0] - 2026-11-21
+
+### New: Instant Feedback for students
+
+- Students can check a practice answer and get feedback straight away, in **quiz essay questions** and **assignment online text**. Off by default: turn it on in *Fast Grade settings > Instant Feedback for students*, then set it up from **Instant Feedback** in the activity's menu.
+- Teachers choose the ideas the answer should contain and the wording that shows each one, terms that must be used, values to check and unsafe statements to flag. They write the messages for found, part-way and missing ideas, add up to three hints and link a learning resource. **Fill from this activity** starts from the grader information, rubric or existing auto-marking checks.
+- Three feedback modes: guidance only (the default), guidance with a practice score (clearly marked as not a grade), and hints only (one hint per check).
+- Checks per answer and retries are set by the teacher, within a site limit, and enforced on the server. The same answer checked twice, or a double click, uses no check. A blank answer uses no check.
+- Assignments: feedback while writing, after submitting, or both. Quizzes: during an attempt only. Never in quizzes that use a secure browser.
+- **Try it** shows the teacher exactly what a student would see. **Practice report** shows checks, students, gain from first to last check, ideas missed most often, answers to look at, and each student's checks with their answers.
+- Answers are checked on the server, so the wording looked for and any model answer never reach the student's browser. Checking never saves, submits or grades anything. Practice checks are kept apart from grades.
+- New tables `local_fastgrade_ifset` (set-ups) and `local_fastgrade_ifattempt` (practice checks), new capability `local/fastgrade:useinstantfeedback`, new web services `local_fastgrade_instant_check` and `local_fastgrade_instant_manage`. Privacy API, backup (set-ups) and restore updated.
+
+### Auto-marking reads answers more carefully (markers and Instant Feedback)
+
+- **Negation.** A key phrase only counts when it is said the right way round: "do not wear PPE", "never isolate", "without consulting", "PPE is not necessary" or "PPE is optional" no longer count as evidence. A double negative ("never forget to wear PPE") still counts, and a phrase that is negative itself ("do not remove the guard") is matched correctly. Negated phrases are flagged to the marker; key points said the opposite way are shown as part-way at most.
+- **Contradictions.** An answer that says something and also says its opposite is not given credit and is flagged.
+- **Spelling.** UK and US spellings match (organise/organize, colour/color, centre/center, licence/license, paediatric/pediatric). Likely spelling slips in longer words still match ("equiptment", "isolaton"), with strict limits so different words do not ("conduct" is not "conduit").
+- **New check: Answer checks** (added to every whole-answer criterion by default). These flag a list of key words with no explanation, repeated sentences used as padding, a copied question, an unchanged response template, off-topic answers, no reason when asked to explain, no example when asked for one, and fewer items than asked for. Vague wording, hedged wording and text speak are noted but do not change the score.
+- **New rule: In order.** Steps must be mentioned in the order given (for example isolate, lock out, test for dead).
+- **New rule: Value.** A number, with an optional unit, must be inside a range when it appears near given words (for example 230 V for single-phase supply).
+- The server copy of the engine (`classes/local/engine`) and the browser engine are tested against the same 86 shared cases (`tests/fixtures/engine_spec.json`).
+- **Answered parts.** A sentence only counts as answering a part when it uses at least two of its own words, said the right way round. Restating the question's wording no longer earns credit.
+- **Negation scope.** "Never" or "not" now stops at the end of its own clause, so one negative is not counted twice ("I never skip the check and I do not need help").
+
+### New: optional AI marking of typed answers (LMS Labs credits)
+
+- **Compare with AI** on the Auto tab shows the free rules and LMS Labs AI side by side for each criterion, with where they agree. It costs 1 credit per answer, and the marker confirms first. A kept result is never charged twice.
+- Teachers can choose AI instead of the free rules for an activity's Instant Feedback when the site allows it. The free rules still run on every check and are kept, so the practice report shows how often AI and the rules agree. Students get the free rules whenever AI is unavailable, out of credits or over the daily limit.
+- Off by default. Four new settings: AI marking for markers, AI for student Instant Feedback, consent to send typed answers to LMS Labs AI (required for either), and a daily credit limit for student checks (default 200). No student name or id is sent. New table `local_fastgrade_aitext`, new web service `local_fastgrade_ai_compare`.
+- **Needs LMS Labs:** this uses a new LMS Labs endpoint, `/api/ai/text-marking` (contract in `docs/lmslabs-text-marking-api.md`). Until it is live, AI requests fail safely: markers see "AI check failed" and students get the free rules, with no credits used.
+
+### Other
+
+- After a student submits, "Feedback on my submission" now shows on the page Moodle returns them to (it needed a reload before).
+- Student answers are turned into plain text in the browser before checking, and the web service accepts plain text only.
+- Auto-marking's answer checks now count the criterion's own wording as on topic, so a good answer is no longer flagged as "little to do with the question".
+- Added the missing name for the licence-check cache (Site administration > Caching).
+- In hints mode, a missing idea is labelled "Something still to add" instead of being left blank.
+- The licence check for student-facing features is shared across the site for an hour, so students do not each cause a call to LMS Labs. The check itself is unchanged.
+
+### Tested
+
+- Moodle 5.3.1+ (PostgreSQL 17, PHP 8.3), upgraded from v1.5.4 with `admin/cli/upgrade.php`; database schema check clean.
+- PHPUnit: 54 tests, 307 assertions, all passing (33 existing tests unchanged, 21 new). Browser engine: 86/86 shared cases. Old and new engines give identical results on answers without negation.
+- Browser test in Chrome as a teacher and a student: set-up, Try it (a negated answer gets 0 of 3; a correct answer in other words gets 3 of 3), student check in assignment online text (TinyMCE) and in a quiz essay attempt, hints mode, unsafe statement flagged, no hidden wording in the student page, practice report, phone-sized screen. No JavaScript errors.
+- Not tested: Moodle 4.4 and 4.5 (only 5.3 was available here), and AI marking against the live LMS Labs endpoint (built and tested on the LMS Labs side; check it after the LMS Labs release).
+
 ## [v1.5.4] - 2026-11-17
 
 ### Fixed

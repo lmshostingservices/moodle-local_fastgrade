@@ -23,6 +23,7 @@
  */
 
 import {t} from 'local_fastgrade/lib/str';
+import * as Sense from 'local_fastgrade/autograde/sense';
 
 export const STOP = new Set(('a an the and or but if of to in on at by for with from as is are was were be been being it its ' +
     'this that these those there their they them he she his her we our you your i me my not no do does did can could ' +
@@ -159,7 +160,7 @@ export const tokens = text => {
     let m;
     while ((m = re.exec(text))) {
         const w = m[0].toLowerCase().replace(/[’']s$/, '').replace(/['’]/g, '');
-        out.push({w, s: stem(w), start: m.index, end: m.index + m[0].length});
+        out.push({w, s: stem(Sense.fold(w)), start: m.index, end: m.index + m[0].length});
     }
     return out;
 };
@@ -206,30 +207,53 @@ export const phraseStems = phrase => {
 };
 
 /**
- * Find a phrase's stems in a token list (in order, allowing up to 2 extra words between).
+ * A phrase as terms to look for, and whether the phrase itself is negative ("do not remove the guard").
+ * Negation words are left out of the terms: the phrase's polarity is kept in neg instead.
+ *
+ * @param {string} phrase
+ * @returns {Object} {terms: [{w, s}], neg: boolean}
+ */
+export const phraseTerms = phrase => {
+    const tk = Sense.markNegation(tokens(phrase), phrase);
+    const words = tk.filter(x => !x.negword);
+    const content = words.filter(x => !STOP.has(x.w));
+    const use = content.length ? content : words;
+    return {terms: use.map(x => ({w: x.w, s: x.s})), neg: use.some(x => x.neg)};
+};
+
+/**
+ * Find a phrase in a token list (in order, allowing up to 2 extra words between). Terms match on
+ * stems, or on a likely spelling slip of a long word. When the tokens carry negation marks, a hit
+ * whose polarity is the opposite of the phrase's ("do not wear PPE" for "wear PPE") is flagged negated.
  *
  * @param {Array} tk tokens of a sentence
- * @param {string[]} stems
- * @returns {Array} [{start, end}] character ranges
+ * @param {Array} stems stems (strings) or terms ({w, s})
+ * @param {boolean} phraseneg whether the phrase itself is negative
+ * @returns {Array} [{start, end, negated, slip}] character ranges
  */
-export const findPhrase = (tk, stems) => {
+export const findPhrase = (tk, stems, phraseneg = false) => {
     const hits = [];
     if (!stems.length) {
         return hits;
     }
     for (let i = 0; i < tk.length; i++) {
-        if (tk[i].s !== stems[0]) {
+        let slip = Sense.termMatch(tk[i], stems[0]) === 2;
+        if (!Sense.termMatch(tk[i], stems[0])) {
             continue;
         }
         let j = i;
         let k = 1;
         let gap = 0;
+        const matched = [i];
         while (k < stems.length && j + 1 < tk.length) {
             j++;
-            if (tk[j].s === stems[k]) {
+            const mt = Sense.termMatch(tk[j], stems[k]);
+            if (mt) {
+                slip = slip || mt === 2;
+                matched.push(j);
                 k++;
                 gap = 0;
-            } else if (STOP.has(tk[j].w) || gap < 2) {
+            } else if (STOP.has(tk[j].w) || tk[j].negword || gap < 2) {
                 gap++;
                 if (gap > 3) {
                     break;
@@ -239,7 +263,9 @@ export const findPhrase = (tk, stems) => {
             }
         }
         if (k === stems.length) {
-            hits.push({start: tk[i].start, end: tk[j].end});
+            const marked = matched.map(x => tk[x]).filter(x => x.neg !== undefined && !x.negword);
+            const negated = marked.length > 0 && marked[0].neg !== !!phraseneg;
+            hits.push({start: tk[i].start, end: tk[j].end, negated, slip});
         }
     }
     return hits;
@@ -265,24 +291,67 @@ export const PRESETS = {
  */
 const alternatives = terms => (terms || []).map(t => ({
     label: t.split(/\s*[|/]\s*/)[0],
-    stems: t.split(/\s*[|/]\s*/).filter(Boolean).map(phraseStems),
+    stems: t.split(/\s*[|/]\s*/).filter(Boolean).map(phraseTerms),
 }));
+
+/**
+ * Tokens of a stretch of text with negation marked.
+ *
+ * @param {string} text
+ * @returns {Array}
+ */
+export const marked = text => Sense.markNegation(tokens(text), text);
+
+/**
+ * Find every alternative of a rule in the sentences, split into hits that count and hits where the
+ * answer says the opposite ("do not…", "never…", "without…").
+ *
+ * @param {Array} sents sentences with negation-marked tokens
+ * @param {Array} terms rule terms
+ * @returns {Object} {found: Map label => [hit], negated: Map label => [hit]}
+ */
+const findAlternatives = (sents, terms) => {
+    const found = new Map();
+    const negated = new Map();
+    alternatives(terms).forEach(alt => {
+        sents.forEach(s => {
+            alt.stems.forEach(st => {
+                findPhrase(s.tk, st.terms, st.neg).forEach(hit => {
+                    const map = hit.negated ? negated : found;
+                    if (!map.has(alt.label)) {
+                        map.set(alt.label, []);
+                    }
+                    map.get(alt.label).push({start: s.start, end: s.end, at: hit.start, label: alt.label, slip: hit.slip});
+                });
+            });
+        });
+    });
+    return {found, negated};
+};
 
 /**
  * Check one criterion's rules against a text.
  *
+ * A key phrase only counts where the answer says it the right way round: "do not isolate the power"
+ * is not evidence for "isolate the power". When an answer says both, the phrase is left for the
+ * marker (contradiction) rather than counted.
+ *
  * @param {string} text
  * @param {Array} rules [{kind, config}]
+ * @param {Object} ctx {question, template, topic} for the whole-answer checks
  * @returns {Object} {met, total, ok, hits: [{start, end, label, kind, positive}], notes: []}
  */
-export const evaluate = (text, rules) => {
-    const sents = sentences(text).map(s => Object.assign(s, {tk: tokens(s.text)}));
-    const allwords = tokens(text).length;
+export const evaluate = (text, rules, ctx = {}) => {
+    const sents = sentences(text).map(s => Object.assign(s, {tk: marked(s.text)}));
+    const alltk = tokens(text);
+    const allwords = alltk.length;
     const hits = [];
     const notes = [];
     let met = 0;
     let total = 0;
     const sentenceOf = (start, end) => sents.find(s => start >= s.start && end <= s.end + 1) || {start, end};
+    const negHits = (negated, rulelabel) => negated.forEach(list => list.forEach(x => hits.push(Object.assign({}, x,
+        {kind: 'negated', positive: false, rulelabel, comment: t('auto_negated', x.label)}))));
     (rules || []).forEach(rule => {
         const cfg = rule.config || {};
         const min = Math.max(1, cfg.min || 1);
@@ -290,19 +359,10 @@ export const evaluate = (text, rules) => {
             case 'term':
             case 'anyof': {
                 total++;
-                const found = new Map();
-                alternatives(cfg.terms).forEach(alt => {
-                    sents.forEach(s => {
-                        alt.stems.forEach(st => {
-                            findPhrase(s.tk, st).forEach(() => {
-                                if (!found.has(alt.label)) {
-                                    found.set(alt.label, []);
-                                }
-                                found.get(alt.label).push({start: s.start, end: s.end, label: alt.label});
-                            });
-                        });
-                    });
-                });
+                const {found, negated} = findAlternatives(sents, cfg.terms);
+                // Said both ways round: not counted, shown to the marker.
+                const contradicted = [...found.keys()].filter(k => negated.has(k));
+                contradicted.forEach(k => found.delete(k));
                 const distinct = found.size;
                 const count = [...found.values()].reduce((n, l) => n + l.length, 0);
                 const ok = rule.kind === 'anyof' ? distinct >= min : (distinct > 0 && count >= min);
@@ -311,8 +371,11 @@ export const evaluate = (text, rules) => {
                 }
                 found.forEach(list => list.forEach(x => hits.push(Object.assign({}, x, {kind: rule.kind, positive: true,
                     rulelabel: cfg.label || ''}))));
+                negHits(negated, cfg.label || '');
                 notes.push({kind: rule.kind, ok, label: cfg.label || (cfg.terms || []).slice(0, 4).join(', '),
-                    detail: rule.kind === 'anyof' ? `${distinct}/${min}` : `${count}`, found: [...found.keys()]});
+                    detail: rule.kind === 'anyof' ? `${distinct}/${min}` : `${count}`, found: [...found.keys()],
+                    negated: [...negated.keys()].filter(k => !contradicted.includes(k)), contradicted,
+                    slips: [...found.values()].flat().filter(x => x.slip).map(x => x.label)});
                 break;
             }
             case 'pattern': {
@@ -347,13 +410,14 @@ export const evaluate = (text, rules) => {
             }
             case 'mustnot': {
                 total++;
+                // "Never remove the guard" is the safe statement, so a negated hit is not a problem.
+                const {found} = findAlternatives(sents, cfg.terms);
                 let bad = 0;
-                alternatives(cfg.terms).forEach(alt => sents.forEach(s => alt.stems.forEach(st => findPhrase(s.tk,
-                    st).forEach(() => {
+                found.forEach(list => list.forEach(x => {
                     bad++;
-                    hits.push({start: s.start, end: s.end, label: alt.label, kind: 'mustnot', positive: false,
+                    hits.push({start: x.start, end: x.end, label: x.label, kind: 'mustnot', positive: false,
                         comment: cfg.comment || ''});
-                }))));
+                }));
                 if (!bad) {
                     met++;
                 }
@@ -369,7 +433,8 @@ export const evaluate = (text, rules) => {
                     met++;
                 }
                 notes.push({kind: 'ideas', ok, ratio: need ? Math.min(1, res.found.length / need) : 0, label: cfg.label || '',
-                    detail: `${res.found.length}/${(cfg.terms || []).length}`, found: res.found, missing: res.missing});
+                    detail: `${res.found.length}/${(cfg.terms || []).length}`, found: res.found, missing: res.missing,
+                    negated: res.negated});
                 break;
             }
             case 'length': {
@@ -399,11 +464,130 @@ export const evaluate = (text, rules) => {
                 notes.push({kind: 'structure', ok, label: cfg.label || cfg.preset});
                 break;
             }
+            case 'sequence': {
+                // Steps that must come in this order, each with its own wording ("isolate | switch off").
+                total++;
+                const res = sequenceCheck(sents, cfg.terms || []);
+                if (res.ok) {
+                    met++;
+                }
+                notes.push({kind: 'sequence', ok: res.ok, label: cfg.label || (cfg.terms || []).map(x => x.split(/\s*[|/]\s*/)[0])
+                    .join(' → '), detail: res.detail, missing: res.missing, outoforder: res.outoforder});
+                break;
+            }
+            case 'value': {
+                // A number near given words, inside a range ("240 V" for "single phase voltage").
+                total++;
+                const res = valueCheck(sents, cfg);
+                if (res.ok) {
+                    met++;
+                }
+                res.wrong.forEach(w => hits.push({start: w.start, end: w.end, label: w.text, kind: 'value', positive: false,
+                    comment: cfg.comment || t('auto_valuewrong', {have: w.text, want: valueRange(cfg)})}));
+                notes.push({kind: 'value', ok: res.ok, label: cfg.label || (cfg.terms || []).slice(0, 2).join(', '),
+                    detail: res.detail});
+                break;
+            }
+            case 'quality': {
+                // The answer as a whole: keyword lists, padding, copied question, missing reasons and so on.
+                const q = Sense.analyse(text, {tokens: alltk, sentences: sents, question: ctx.question || '',
+                    questiontokens: tokens(ctx.question || ''), templatetokens: tokens(ctx.template || ''),
+                    topic: (ctx.topic || []), items: ctx.items});
+                q.issues.forEach(is => {
+                    total++;
+                    notes.push({kind: 'quality', ok: false, code: is.code, level: is.level,
+                        label: t('q_' + is.code, is.detail), detail: ''});
+                });
+                break;
+            }
             default:
                 break;
         }
     });
     return {met, total, ok: total > 0 && met === total, partial: met > 0 && met < total, hits, notes, words: allwords};
+};
+
+/**
+ * Steps in order: each found the right way round, and each after the one before.
+ *
+ * @param {Array} sents sentences with negation-marked tokens
+ * @param {string[]} steps
+ * @returns {Object} {ok, detail, missing: [], outoforder: []}
+ */
+const sequenceCheck = (sents, steps) => {
+    const at = steps.map(step => {
+        const {found} = findAlternatives(sents, [step]);
+        const list = [...found.values()].flat();
+        return list.length ? Math.min(...list.map(x => x.at)) : -1;
+    });
+    const labels = steps.map(x => x.split(/\s*[|/]\s*/)[0]);
+    const missing = labels.filter((l, i) => at[i] < 0);
+    const outoforder = [];
+    let last = -1;
+    let lastlabel = '';
+    at.forEach((pos, i) => {
+        if (pos < 0) {
+            return;
+        }
+        if (pos < last) {
+            outoforder.push(lastlabel + ' → ' + labels[i]);
+        }
+        if (pos > last) {
+            last = pos;
+            lastlabel = labels[i];
+        }
+    });
+    const n = at.filter(x => x >= 0).length;
+    return {ok: steps.length > 0 && !missing.length && !outoforder.length, missing, outoforder,
+        detail: outoforder.length ? outoforder.join('; ') : `${n}/${steps.length}`};
+};
+
+/**
+ * The accepted range of a value rule, as text.
+ *
+ * @param {Object} cfg
+ * @returns {string}
+ */
+export const valueRange = cfg => {
+    const unit = String(cfg.unit || '').split(/\s*[|/]\s*/)[0];
+    const lo = cfg.vmin;
+    const hi = cfg.vmax;
+    const num = x => (x === null || x === undefined || x === '' ? null : Number(x));
+    if (num(lo) !== null && num(hi) !== null && num(lo) !== num(hi)) {
+        return `${lo}–${hi}${unit ? ' ' + unit : ''}`;
+    }
+    return `${num(lo) !== null ? lo : hi}${unit ? ' ' + unit : ''}`;
+};
+
+/**
+ * Values given for a quantity: a number (with the unit, when one is set) in a sentence about it.
+ *
+ * @param {Array} sents
+ * @param {Object} cfg {terms, unit, vmin, vmax}
+ * @returns {Object} {ok, detail, wrong: [{text, start, end}]}
+ */
+export const valueCheck = (sents, cfg) => {
+    const units = String(cfg.unit || '').toLowerCase().split(/\s*[|/]\s*/).filter(Boolean);
+    const lo = cfg.vmin === null || cfg.vmin === undefined || cfg.vmin === '' ? -Infinity : Number(cfg.vmin);
+    const hi = cfg.vmax === null || cfg.vmax === undefined || cfg.vmax === '' ? Infinity : Number(cfg.vmax);
+    const terms = (cfg.terms || []).length ? cfg.terms : [];
+    const good = [];
+    const wrong = [];
+    sents.forEach(s => {
+        const about = !terms.length || findAlternatives([s], terms).found.size > 0;
+        if (!about) {
+            return;
+        }
+        Sense.numbers(s.text).forEach(nm => {
+            if (units.length && !units.includes(nm.unit)) {
+                return;
+            }
+            const hit = {text: s.text.slice(nm.start, nm.end).trim(), start: s.start + nm.start, end: s.start + nm.end};
+            (nm.n >= lo && nm.n <= hi ? good : wrong).push(hit);
+        });
+    });
+    return {ok: good.length > 0 && !wrong.length, wrong, good,
+        detail: wrong.length ? wrong.map(w => w.text).join(', ') : (good.length ? good[0].text : '0')};
 };
 
 /**
@@ -493,15 +677,20 @@ const CANON = {act: 'legisl', law: 'legisl', regul: 'legisl', statut: 'legisl', 
  *
  * @param {string} text
  * @param {Set} demote stems to ignore
+ * @param {string} polarity 'all' (default), 'positive' (leave out words a negation reaches) or 'negative'
  * @returns {string[]}
  */
-const contentStems = (text, demote) => {
+const contentStems = (text, demote, polarity = 'all') => {
     let low = String(text || '').toLowerCase();
     LONGFORMS.forEach(([re, ab]) => {
         low = low.replace(re, ab);
     });
     const out = [];
-    tokens(low).forEach(x => {
+    const tk = polarity === 'all' ? tokens(low) : Sense.markNegation(tokens(low), low);
+    tk.forEach(x => {
+        if ((polarity === 'positive' && (x.neg || x.negword)) || (polarity === 'negative' && !x.neg)) {
+            return;
+        }
         const w = ABBR[x.w] || x.w;
         const st = ABBR[x.w] ? w : norm(x.s);
         if (STOP.has(w) || w.length < 2 || demote.has(st) || META.has(st)) {
@@ -594,6 +783,9 @@ export const matchStep = (criterion, steps) => {
 const KWFILLER = new Set(('one two three four five each every per using use used take taking make before after so then ' +
     'also still own way part question questions answer example examples difference between thing things new short ' +
     'long good well first second third main least most more less').split(' '));
+
+const FILLERSTEMS = new Set([...KWFILLER, 'too', 'very', 'really', 'just', 'quite', 'thing', 'lot', 'time']
+    .map(w => norm(stem(w))));
 
 /**
  * A short label for a step: its first few words.
@@ -728,9 +920,11 @@ const IDEAMAP = (() => {
  * The ideas in a text, as canonical stems.
  *
  * @param {string} text
+ * @param {string} polarity 'all', 'positive' or 'negative' (see contentStems)
  * @returns {string[]}
  */
-const ideaStems = text => contentStems(text, new Set()).map(st => IDEAMAP[st] || st).filter(st => !NOTIDEA.has(st));
+const ideaStems = (text, polarity = 'all') => contentStems(text, new Set(), polarity).map(st => IDEAMAP[st] || st)
+    .filter(st => !NOTIDEA.has(st));
 
 /**
  * The key ideas a criterion asks for: its distinct content words, shown as words.
@@ -759,14 +953,25 @@ export const keyIdeas = text => {
  * @returns {Object} {found: [], missing: [], ratio}
  */
 export const ideasCheck = (text, ideas) => {
-    const have = new Set(ideaStems(text));
+    // Only ideas the answer states count; "no consultation took place" does not show consultation.
+    const have = new Set(ideaStems(text, 'positive'));
+    const against = new Set(ideaStems(text, 'negative'));
     const found = [];
     const missing = [];
+    const negated = [];
     (ideas || []).forEach(w => {
         const st = w.split(/\s*[|/]\s*/).map(x => ideaStems(x)[0]).filter(Boolean);
-        (st.some(x => have.has(x)) ? found : missing).push(w.split(/\s*[|/]\s*/)[0]);
+        const label = w.split(/\s*[|/]\s*/)[0];
+        if (st.some(x => have.has(x))) {
+            found.push(label);
+        } else {
+            missing.push(label);
+            if (st.some(x => against.has(x))) {
+                negated.push(label);
+            }
+        }
     });
-    return {found, missing, ratio: ideas && ideas.length ? found.length / ideas.length : 0};
+    return {found, missing, negated, ratio: ideas && ideas.length ? found.length / ideas.length : 0};
 };
 
 /**
@@ -860,7 +1065,9 @@ export const coverage = (text, points, question = '') => {
     const qstems = new Set(contentStems(question || '', new Set()));
     const none = new Set();
     const sents = windows(text);
-    const sstems = sents.map(s => contentStems(s.text, none));
+    // Words a negation reaches are left out, so "workers were not consulted" does not cover "consult workers".
+    const sstems = sents.map(s => contentStems(s.text, none, 'positive'));
+    const rawsets = sents.map(s => new Set(contentStems(s.text, none)));
     const pstems = points.map(p => contentStems(p, none));
     const docs = [...sstems, ...pstems];
     const df = new Map();
@@ -885,7 +1092,7 @@ export const coverage = (text, points, question = '') => {
         const pset = new Set(pst);
         const skip = w => qstems.has(w) && !pset.has(w);
         const pv = vec(pst);
-        let best = {score: 0, i: -1};
+        let best = {score: 0, i: -1, neg: false};
         svecs.forEach((sv, i) => {
             let dot = 0;
             let snorm = 0;
@@ -904,14 +1111,34 @@ export const coverage = (text, points, question = '') => {
             // Share of the point's words found in the sentence (alignment).
             const align = pset.size ? [...pset].filter(w => ssets[i].has(w)).length / pset.size : 0;
             // A pair has to do clearly better than its sentences to be chosen.
-            const score = (0.5 * Math.min(1, cos) + 0.5 * Math.min(1, align)) * (sents[i].pair ? 0.92 : 1);
+            let score = (0.5 * Math.min(1, cos) + 0.5 * Math.min(1, align)) * (sents[i].pair ? 0.92 : 1);
+            // A point word the sentence negates ("were not consulted") weakens the match.
+            const neg = [...pset].some(w => rawsets[i].has(w) && !ssets[i].has(w));
+            if (neg) {
+                score *= 0.55;
+            }
             if (score > best.score) {
-                best = {score, i};
+                best = {score, i, neg};
             }
         });
-        const status = best.score >= 0.5 ? 'covered' : (best.score >= 0.3 ? 'partial' : 'missing');
+        let status = best.score >= 0.5 ? 'covered' : (best.score >= 0.3 ? 'partial' : 'missing');
+        // The answer mentions the point but says the opposite somewhere: never more than part-way, and flagged.
+        let negated = best.neg;
+        rawsets.forEach((set, i) => {
+            const align = pset.size ? [...pset].filter(w => set.has(w)).length / pset.size : 0;
+            if (align >= 0.6 && [...pset].some(w => set.has(w) && !ssets[i].has(w))) {
+                negated = true;
+                if (best.i < 0 || best.score < 0.3) {
+                    best = {score: 0.3, i, neg: true};
+                }
+            }
+        });
+        if (negated) {
+            status = 'partial';
+        }
         const s = best.i >= 0 ? sents[best.i] : null;
-        return {point: p, status, score: Math.round(best.score * 100) / 100, start: s ? s.start : -1, end: s ? s.end : -1};
+        return {point: p, status, negated, score: Math.round(best.score * 100) / 100, start: s ? s.start : -1,
+            end: s ? s.end : -1};
     });
 };
 
@@ -922,22 +1149,26 @@ export const coverage = (text, points, question = '') => {
  *
  * @param {string} text
  * @param {string[]} parts
+ * @param {string} question the question or instructions (optional): restating them is not answering
  * @returns {Array} [{label, ok, start, end}]
  */
-export const partsCheck = (text, parts) => {
+export const partsCheck = (text, parts, question = '') => {
     const one = sentences(text);
+    // Words of the question itself: a sentence that only restates the question does not answer a part.
+    const qset = new Set(contentStems(question || '', new Set()));
     // Each sentence, and each pair of neighbouring sentences (an answer often spreads one point over two).
     const sents = one.concat(one.slice(1).map((s, i) => ({text: one[i].text + ' ' + s.text, start: one[i].start, end: s.end,
-        pair: true}))).map(s => Object.assign(s, {tk: tokens(s.text), ideas: new Set(ideaStems(s.text))}));
-    // A keyword is found as written, or as the same idea in everyday words ("lesson" for "learn").
-    const has = (s, kw, st) => findPhrase(s.tk, st).length > 0 || (() => {
+        pair: true}))).map(s => Object.assign(s, {tk: marked(s.text), ideas: new Set(ideaStems(s.text, 'positive')),
+        own: new Set(contentStems(s.text, new Set(), 'positive').filter(w => !qset.has(w) && !FILLERSTEMS.has(w)))}));
+    // A keyword is found as written (and not negated), or as the same idea in everyday words ("lesson" for "learn").
+    const has = (s, kw, st) => findPhrase(s.tk, st.terms, st.neg).some(x => !x.negated) || (() => {
         const ids = ideaStems(kw);
         return ids.length > 0 && ids.every(x => s.ideas.has(x));
     })();
     return (parts || []).map(p => {
         const [label, kws] = p.includes(':') ? [p.slice(0, p.indexOf(':')).trim(), p.slice(p.indexOf(':') + 1)] : [p, p];
         const words = kws.split(/[,|/]/).map(x => x.trim()).filter(Boolean);
-        const alts = words.map(phraseStems);
+        const alts = words.map(phraseTerms);
         // A part is answered by the sentence that uses the most of its keywords: at least two when it has two or more,
         // so one shared word (a title, a heading) is not enough.
         const meaningful = words.filter(w => ideaStems(w).length).length || alts.length;
@@ -945,6 +1176,10 @@ export const partsCheck = (text, parts) => {
         let best = null;
         let bestn = 0;
         for (const s of sents) {
+            // With the question known, the sentence must also say at least two things of its own, the right way round.
+            if (qset.size && s.own.size < 2) {
+                continue;
+            }
             const n = alts.filter((st, i) => has(s, words[i], st)).length;
             // Prefer a single sentence over a pair when they match as well.
             if (n > bestn || (n === bestn && n && best && best.pair && !s.pair)) {

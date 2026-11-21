@@ -55,6 +55,21 @@ function local_fastgrade_extend_settings_navigation(settings_navigation $nav, co
         $node->showinflatnavigation = true;
         $node->set_force_into_more_menu(false);
     }
+    if (
+        \local_fastgrade\local\instant\config::teachers_may_enable() &&
+            has_capability('local/fastgrade:managecriteria', $context)
+    ) {
+        $url = new moodle_url('/local/fastgrade/instant.php', ['id' => $PAGE->cm->id]);
+        $node = $modnode->add(
+            get_string('if_navtitle', 'local_fastgrade'),
+            $url,
+            navigation_node::TYPE_SETTING,
+            null,
+            'local_fastgrade_instant',
+            new pix_icon('i/checked', '')
+        );
+        $node->set_force_into_more_menu(false);
+    }
     if (has_capability('local/fastgrade:viewreport', $context)) {
         $url = new moodle_url('/local/fastgrade/report.php', ['id' => $PAGE->cm->id]);
         $node = $modnode->add(

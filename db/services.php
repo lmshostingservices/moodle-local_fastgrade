@@ -25,6 +25,27 @@
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
+    'local_fastgrade_instant_check' => [
+        'classname' => 'local_fastgrade\\external\\instant_check',
+        'description' => 'Students: check a practice answer with Instant Feedback.',
+        'type' => 'write',
+        'ajax' => true,
+        'loginrequired' => true,
+    ],
+    'local_fastgrade_instant_manage' => [
+        'classname' => 'local_fastgrade\\external\\instant_manage',
+        'description' => 'Teachers: set up Instant Feedback, try answers, and see the practice report.',
+        'type' => 'write',
+        'ajax' => true,
+        'loginrequired' => true,
+    ],
+    'local_fastgrade_ai_compare' => [
+        'classname' => 'local_fastgrade\\external\\ai_compare',
+        'description' => 'Markers: optional AI marking of a typed answer through LMS Labs AI (uses credits).',
+        'type' => 'write',
+        'ajax' => true,
+        'loginrequired' => true,
+    ],
     'local_fastgrade_analyse_images' => [
         'classname' => 'local_fastgrade\\external\\analyse_images',
         'description' => 'Optional AI image analysis through LMS Labs AI (uses LMS Labs credits).',

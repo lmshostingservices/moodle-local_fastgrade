@@ -155,6 +155,16 @@ const needText = n => {
         }
         return /reference/.test(n.label || '') ? t('auto_m_reflist') : t('auto_m_headings');
     }
+    if (n.kind === 'quality') {
+        return n.level === 'warn' ? n.label : '';
+    }
+    if (n.kind === 'sequence') {
+        return n.outoforder && n.outoforder.length ? t('auto_m_order', n.outoforder.join('; ')) :
+            t('auto_m_steps', (n.missing || []).join(', '));
+    }
+    if (n.kind === 'value') {
+        return t('auto_m_value', n.label);
+    }
     if (n.kind === 'pattern') {
         return /citation/.test(n.label || '') ? t('auto_m_cite') : (/legislation/.test(n.label || '') ? t('auto_m_law') :
             n.label || n.detail);
@@ -342,6 +352,8 @@ export default class AutoTab {
                 if (!item.question) {
                     rules.push({kind: 'compliance', config: {}, auto: true});
                 }
+                // Checks on the answer as a whole: keyword lists, padding, copied question, missing reasons.
+                rules.push({kind: 'quality', config: {}, auto: true});
                 // A question or brief with an equation in it gets the maths working check, ready to go, in place of
                 // checks drawn from its wording (only word limits still apply).
                 out[c.key] = mathsTask ? [...rules.filter(r => r.kind === 'length'), mathsRule()] : rules;
@@ -668,11 +680,26 @@ export default class AutoTab {
             // Slides and spreadsheets say things in a few words, so ideas found anywhere count for more there.
             const res = {crit: c, notes: [], points: [], parts: [], met: 0, total: 0,
                 terse: !!(app.viewer.doc && ['slides', 'sheet'].includes(app.viewer.doc.kind))};
-            const checkrules = rules.filter(r => ['term', 'anyof', 'pattern', 'mustnot', 'length', 'structure', 'ideas']
-                .includes(r.kind));
+            const checkrules = rules.filter(r => ['term', 'anyof', 'pattern', 'mustnot', 'length', 'structure', 'ideas',
+                'sequence', 'value', 'quality'].includes(r.kind));
+            // Words from the criterion and its checks count as on topic, as they do for Instant Feedback.
+            const topic = new Set();
+            const walk = v => {
+                if (typeof v === 'string') {
+                    Engine.tokens(v).forEach(x => topic.add(x.s));
+                } else if (Array.isArray(v)) {
+                    v.forEach(walk);
+                } else if (v && typeof v === 'object') {
+                    Object.keys(v).filter(k => k !== 'comment').forEach(k => walk(v[k]));
+                }
+            };
+            walk(c.label || '');
+            checkrules.forEach(r => walk(r.config));
+            const ctx = {question: c.question || '', template: this.item && this.item.question ?
+                textOf(this.item.question.template || '') : '', topic: [...topic]};
             const seen = new Set();
             pages.forEach(pg => {
-                const ev = Engine.evaluate(pg.text, checkrules);
+                const ev = Engine.evaluate(pg.text, checkrules.filter(r => r.kind !== 'quality'), ctx);
                 ev.hits.forEach(hh => {
                     const k = pg.page + ':' + hh.start;
                     if (seen.has(k)) {
@@ -709,6 +736,10 @@ export default class AutoTab {
                 }
             }
             res.notes = [...merged.values()];
+            if (checkrules.some(r => r.kind === 'quality')) {
+                const all = pages.map(p => p.text).join('\n');
+                res.notes.push(...Engine.evaluate(all, [{kind: 'quality', config: {}}], ctx).notes);
+            }
             rules.filter(r => r.kind === 'maths').forEach(r => this.mathsCheck(r, c, pages, res, maths, suggest));
             // Slides: a criterion about speaker notes is measured by how many slides have them.
             const v2 = app.viewer.viewer;
@@ -779,7 +810,7 @@ export default class AutoTab {
             // Parts.
             rules.filter(r => r.kind === 'parts').forEach(r => {
                 // Each part: the first page with a sentence that answers it, marked as evidence.
-                const perpage = pages.map(pg => Engine.partsCheck(pg.text, r.config.terms || []));
+                const perpage = pages.map(pg => Engine.partsCheck(pg.text, r.config.terms || [], c.question || ''));
                 res.parts = (r.config.terms || []).map((x, i) => {
                     const pi = perpage.findIndex(list => list[i] && list[i].ok);
                     return pi >= 0 ? Object.assign({page: pages[pi].page}, perpage[pi][i]) : (perpage[0] || [])[i] ||
@@ -853,6 +884,10 @@ export default class AutoTab {
         r.notes.forEach(n => {
             if (n.kind === 'ideas') {
                 ideas = n.ok ? 1 : (n.ratio || 0);
+                return;
+            }
+            // Answer checks that only need a look (vague wording, text speak) do not change the score.
+            if (n.kind === 'quality' && n.level !== 'warn') {
                 return;
             }
             total++;
@@ -1242,14 +1277,20 @@ export default class AutoTab {
                         r.maths ? t('maths_state_' + state, Math.round(mshare * 100)) :
                             t('auto_state_' + state, {met: r.met, total: r.total}))),
                 r.notes.length ? h('ul.fg-auto-list', null, r.notes.map(n => h('li', {"class": n.ok ? 'is-ok' :
-                    (n.inphoto ? 'is-info' : 'is-miss')},
-                    icon(n.ok ? 'check' : (n.inphoto ? 'image' : 'x'), 'fg-i-xs'),
+                    (n.inphoto || (n.kind === 'quality' && n.level !== 'warn') ? 'is-info' : 'is-miss')},
+                    icon(n.ok ? 'check' : (n.inphoto ? 'image' : (n.kind === 'quality' ? 'up' : 'x')), 'fg-i-xs'),
                     h('span', null, t('rule_' + n.kind) + (n.label ? ': ' + n.label : '')),
-                    n.detail ? h('small', null, n.detail) : null))) : null,
+                    n.detail ? h('small', null, n.detail) : null,
+                    (n.negated || []).length ? h('small.fg-auto-neg', null, t('auto_negnote', n.negated.join(', '))) : null,
+                    (n.contradicted || []).length ? h('small.fg-auto-neg', null, t('auto_contranote', n.contradicted.join(', ')))
+                        : null,
+                    (n.slips || []).length ? h('small.fg-auto-note', null,
+                        t('auto_slipnote', [...new Set(n.slips)].join(', '))) : null))) :
+                    null,
                 r.points.length ? h('div.fg-auto-points', null, h('div.fg-small.fg-muted', null, t('auto_keypoints')),
                     h('ul.fg-auto-list', null, r.points.map(p => h('li', {"class": 'is-' + p.status},
                         icon(p.status === 'covered' ? 'check' : (p.status === 'partial' ? 'up' : 'x'), 'fg-i-xs'),
-                        h('span', null, p.point), h('small', null, t('cov_' + p.status)))))) : null,
+                        h('span', null, p.point), h('small', null, t(p.negated ? 'cov_negated' : 'cov_' + p.status)))))) : null,
                 r.parts.length ? h('div.fg-auto-points', null, h('div.fg-small.fg-muted', null, t('auto_parts')),
                     h('ul.fg-auto-list', null, r.parts.map(p => h('li', {"class": p.ok ? 'is-ok' : 'is-miss'},
                         icon(p.ok ? 'check' : 'x', 'fg-i-xs'), h('span', null, p.label),
@@ -1275,8 +1316,109 @@ export default class AutoTab {
                         h('span', null, c.haslist ? t('auto_cites', {n: c.cites, missing: c.missing.length,
                             uncited: c.uncited.length}) : t('auto_noreflist'))) : null)));
         }
+        if (this.app.boot.aitext) {
+            blocks.push(this.aiCard(results));
+        }
         const madeText = t(made === 1 ? 'auto_made_one' : 'auto_made', {n: made, ms: this.results.ms});
         replace(this.out, h('p.fg-small.fg-muted', null, madeText), blocks);
+    }
+
+    /**
+     * How the free rules judged a criterion, in the AI's terms.
+     *
+     * @param {Object} r result for one criterion
+     * @returns {string} met, partial or notmet
+     */
+    rulesVerdict(r) {
+        const share = this.share(r);
+        return share >= 0.75 ? 'met' : (share >= 0.35 ? 'partial' : 'notmet');
+    }
+
+    /**
+     * Compare with AI: the free rules and LMS Labs AI side by side, criterion by criterion. Uses credits,
+     * so the first press says what it costs and the second runs it.
+     *
+     * @param {Array} results
+     * @returns {HTMLElement}
+     */
+    aiCard(results) {
+        const app = this.app;
+        const item = this.item;
+        const key = app.store.get('current').key;
+        const crits = results.filter(r => !r.crit.whole || results.length === 1);
+        const body = h('div.fg-ai-compare-body');
+        const each = app.boot.aitextcredits || 1;
+        const label = t('ai_compare', each);
+        const btn = h('button.fg-btn.is-small', {type: 'button'}, icon('sparkle', 'fg-i-sm'), label);
+        const show = res => {
+            const verdict = s => ({met: 'yes', partial: 'part', unsure: 'part', notmet: 'no'}[s] || 'part');
+            const byid = new Map((res.criteria || []).map(c => [c.id, c]));
+            let agree = 0;
+            const rows = crits.map(r => {
+                const ai = byid.get(r.crit.key) || {status: 'unsure', feedback: '', evidence: ''};
+                const mine = this.rulesVerdict(r);
+                const same = verdict(mine) === verdict(ai.status);
+                agree += same ? 1 : 0;
+                return h('tr', {"class": same ? 'is-agree' : 'is-disagree'},
+                    h('td', null, r.crit.label),
+                    h('td', null, t('ai_status_' + mine)),
+                    h('td', null, h('div', null, t('ai_status_' + ai.status)), ai.feedback ? h('small', null, ai.feedback) : null,
+                        ai.evidence ? h('blockquote.fg-ai-quote', null, ai.evidence) : null),
+                    h('td', null, same ? t('ai_agree') : t('ai_disagree')));
+            });
+            replace(body, h('p.fg-small', null, t('ai_compare_summary', {agree, total: crits.length}) +
+                (res.cached ? ' ' + t('ai_compare_cached') : '')),
+            res.summary ? h('p.fg-small', null, res.summary) : null,
+            h('table.fg-ai-compare-table', null, h('thead', null, h('tr', null, h('th', null, t('auto_criterion')),
+                h('th', null, t('ai_col_rules')), h('th', null, t('ai_col_ai')), h('th', null, ''))), h('tbody', null, rows)),
+            h('p.fg-small.fg-muted', null, t('ai_compare_note')));
+        };
+        const run = async() => {
+            btn.disabled = true;
+            replace(body, h('p.fg-small.fg-muted', null, t('ai_compare_running')));
+            try {
+                const pages = await this.texts();
+                const whole = results.find(r => r.crit.whole);
+                const criteria = crits.map(r => ({id: r.crit.key, label: r.crit.label.replace(/^\d+\.\s*/, ''),
+                    lookFor: Engine.splitPoints(r.crit.benchmark || r.crit.text || '').slice(0, 10), required: true}));
+                const res = await Api.call('ai_compare', {cmid: app.cmid, userid: item.userid, data: {
+                    text: pages.map(p => p.text).join('\n').slice(0, 20000),
+                    question: whole ? (whole.crit.question || '') : (crits[0] ? crits[0].crit.question || '' : ''),
+                    model: item.question ? (crits[0] ? crits[0].crit.benchmark || '' : '') : '',
+                    criteria}});
+                this.aicompare = {key, res};
+                show(res);
+            } catch (e) {
+                replace(body, h('p.fg-small.is-error', null, Api.message(e)));
+            }
+            btn.disabled = false;
+        };
+        btn.onclick = () => {
+            if (btn.dataset.confirm) {
+                delete btn.dataset.confirm;
+                replace(btn, icon('sparkle', 'fg-i-sm'), label);
+                btn.classList.remove('is-primary');
+                run();
+                return;
+            }
+            btn.dataset.confirm = '1';
+            replace(btn, icon('sparkle', 'fg-i-sm'), t('ai_compare_confirm', each));
+            btn.classList.add('is-primary');
+            setTimeout(() => {
+                if (btn.dataset.confirm) {
+                    delete btn.dataset.confirm;
+                    replace(btn, icon('sparkle', 'fg-i-sm'), label);
+                    btn.classList.remove('is-primary');
+                }
+            }, 6000);
+        };
+        if (this.aicompare && this.aicompare.key === key) {
+            show(this.aicompare.res);
+        } else {
+            replace(body, h('p.fg-small.fg-muted', null, t('ai_compare_help')));
+        }
+        return h('section.fg-auto-card.fg-ai-compare', null, h('div.fg-auto-card-head', null,
+            h('strong', null, t('ai_compare_title')), btn), body);
     }
 
     /**

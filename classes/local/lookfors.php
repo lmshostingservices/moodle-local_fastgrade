@@ -15,6 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace local_fastgrade\local;
+
 /**
  * Auto-marking look-for rules. Matching itself runs in the marker's browser against the text being
  * shown, so suggestions line up exactly with what is on screen; no AI service is involved.
@@ -27,7 +28,7 @@ class lookfors {
     /** Rule kinds. */
     const KINDS = [
         'term', 'anyof', 'pattern', 'mustnot', 'length', 'structure', 'threshold', 'keypoints', 'parts', 'compliance',
-        'sources', 'ideas', 'maths', 'photo',
+        'sources', 'ideas', 'maths', 'photo', 'sequence', 'value', 'quality',
     ];
 
     /**
@@ -81,6 +82,12 @@ class lookfors {
             // The model answer is plain typed maths, for example "x = -1/2 or x = 3".
             $config['answer'] = \core_text::substr(trim(clean_param((string)($c['answer'] ?? ''), PARAM_TEXT)), 0, 200);
             $config['working'] = !empty($c['working']) ? 1 : 0;
+        }
+        if ($kind === 'value') {
+            // A number in range, with an optional unit ("V | volts").
+            $config['unit'] = \core_text::substr(trim(clean_param((string)($c['unit'] ?? ''), PARAM_TEXT)), 0, 60);
+            $config['vmin'] = ($c['vmin'] ?? '') === '' ? '' : (float)$c['vmin'];
+            $config['vmax'] = ($c['vmax'] ?? '') === '' ? '' : (float)$c['vmax'];
         }
         if ($kind === 'pattern' && isset($c['regex'])) {
             $regex = (string)$c['regex'];

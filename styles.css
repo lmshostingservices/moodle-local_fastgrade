@@ -2501,6 +2501,16 @@
     color: var(--fg-muted);
     white-space: nowrap;
 }
+:not(#fg-shield) .fg-auto-list li {
+    flex-wrap: wrap;
+}
+:not(#fg-shield) .fg-auto-list li small.fg-auto-neg,
+:not(#fg-shield) .fg-auto-list li small.fg-auto-note {
+    flex-basis: 100%;
+    padding-left: 20px;
+    white-space: normal;
+    color: #a15c00;
+}
 :not(#fg-shield) .fg-auto-list li.is-ok .fg-i,
 :not(#fg-shield) .fg-auto-list li.is-covered .fg-i {
     color: var(--fg-green);
@@ -5236,4 +5246,278 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* Instant Feedback (students and the teacher's preview). Uses Moodle's theme colours where it can. */
+.fg-if {
+    margin: .75rem 0 1rem;
+}
+.fg-if-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: center;
+}
+.fg-if-left {
+    font-size: .875rem;
+    color: #5f6b7a;
+}
+.fg-if-result {
+    margin-top: .75rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid #d6dbe2;
+    border-radius: .6rem;
+    background: #fbfcfd;
+    max-width: 52rem;
+}
+.fg-if-head {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+}
+.fg-if-title {
+    font-size: 1.1rem;
+    margin: 0;
+}
+.fg-if-badge {
+    font-size: .7rem;
+    font-weight: 600;
+    padding: .1rem .45rem;
+    border-radius: 999px;
+    background: #ede7fb;
+    color: #4b2f9a;
+}
+.fg-if-summary {
+    margin: .6rem 0 .3rem;
+    font-weight: 600;
+}
+.fg-if-score {
+    font-weight: 400;
+    color: #5f6b7a;
+}
+.fg-if-bar {
+    height: .4rem;
+    border-radius: .2rem;
+    background: #e5e9ef;
+    overflow: hidden;
+    margin-bottom: .6rem;
+}
+.fg-if-bar-fill {
+    display: block;
+    height: 100%;
+    background: #2e8b57;
+}
+.fg-if-h {
+    font-size: .95rem;
+    margin: .8rem 0 .3rem;
+}
+.fg-if-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.fg-if-item {
+    padding: .45rem .6rem;
+    border-left: 3px solid #c3cad4;
+    margin-bottom: .35rem;
+    background: #fff;
+    border-radius: 0 .35rem .35rem 0;
+}
+.fg-if-item.is-detected {
+    border-left-color: #2e8b57;
+}
+.fg-if-item.is-partial,
+.fg-if-item.is-uncertain {
+    border-left-color: #c98a00;
+}
+.fg-if-item.is-missing {
+    border-left-color: #8a94a3;
+}
+.fg-if-item.is-wrong {
+    border-left-color: #c0392b;
+}
+.fg-if-item-head {
+    display: flex;
+    gap: .45rem;
+    align-items: baseline;
+}
+.fg-if-ic {
+    width: 1rem;
+    text-align: center;
+    font-weight: 700;
+}
+.fg-if-msg,
+.fg-if-hint {
+    margin: .2rem 0 0 1.45rem;
+    font-size: .9rem;
+}
+.fg-if-hint-k {
+    font-weight: 600;
+}
+.fg-if-res {
+    display: inline-block;
+    margin: .2rem 0 0 1.45rem;
+    font-size: .9rem;
+}
+.fg-if-quote {
+    margin: .3rem 0 0;
+    padding: .3rem .6rem;
+    border-left: 3px solid #d6dbe2;
+    font-size: .85rem;
+    color: #3d4754;
+    white-space: pre-wrap;
+}
+.fg-if-notices {
+    margin: .6rem 0 0;
+    padding-left: 1.1rem;
+    font-size: .9rem;
+}
+.fg-if-note,
+.fg-if-review,
+.fg-if-repeat {
+    font-size: .9rem;
+    color: #6b4f00;
+    background: #fff7e0;
+    padding: .4rem .6rem;
+    border-radius: .35rem;
+}
+.fg-if-disclaimer {
+    margin: .8rem 0 0;
+    font-size: .8rem;
+    color: #5f6b7a;
+}
+.fg-if-history {
+    margin-top: .6rem;
+    font-size: .9rem;
+}
+.fg-if-hist {
+    width: auto;
+}
+.fg-ifs-qnav,
+.fg-ifs-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    margin-bottom: .75rem;
+}
+.fg-ifs-qtext {
+    font-size: .9rem;
+    color: #3d4754;
+    border-left: 3px solid #d6dbe2;
+    padding-left: .6rem;
+}
+.fg-ifs-fs {
+    border: 1px solid #d6dbe2;
+    border-radius: .5rem;
+    padding: .75rem 1rem;
+    margin-bottom: 1rem;
+}
+.fg-ifs-fs legend {
+    font-size: 1rem;
+    font-weight: 600;
+    width: auto;
+    padding: 0 .3rem;
+    float: none;
+}
+.fg-ifs-field {
+    display: block;
+    margin-bottom: .6rem;
+}
+.fg-ifs-flabel {
+    display: block;
+    font-weight: 600;
+    font-size: .9rem;
+}
+.fg-ifs-check {
+    display: block;
+    margin-bottom: .35rem;
+}
+.fg-ifs-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+}
+.fg-ifs-row > * {
+    flex: 1 1 10rem;
+}
+.fg-ifs-card {
+    border: 1px solid #e2e6ec;
+    border-radius: .45rem;
+    padding: .6rem .8rem;
+    margin-bottom: .6rem;
+    background: #fbfcfd;
+}
+.fg-ifs-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.fg-ifs-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1rem;
+}
+.fg-ifs-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-bottom: 1rem;
+}
+.fg-ifs-stat {
+    border: 1px solid #e2e6ec;
+    border-radius: .45rem;
+    padding: .5rem .8rem;
+    min-width: 8rem;
+}
+.fg-ifs-stat strong {
+    display: block;
+    font-size: 1.3rem;
+}
+.fg-ifs-stat span {
+    font-size: .8rem;
+    color: #5f6b7a;
+}
+.fg-ifs-compare tr.is-disagree td,
+.fg-ai-compare-table tr.is-disagree td {
+    background: #fff4e5;
+}
+.fg-ai-compare-table {
+    width: 100%;
+    font-size: .85rem;
+    border-collapse: collapse;
+}
+.fg-ai-compare-table th,
+.fg-ai-compare-table td {
+    padding: .3rem .4rem;
+    border-bottom: 1px solid var(--fg-line, #e2e6ec);
+    vertical-align: top;
+}
+.fg-ai-quote {
+    margin: .2rem 0 0;
+    font-size: .8rem;
+    opacity: .8;
+}
+.fg-auto-neg {
+    display: block;
+    color: #a15c00;
+}
+@media (max-width: 576px) {
+    .fg-if-result {
+        padding: .75rem;
+    }
+    .fg-if-msg,
+    .fg-if-hint,
+    .fg-if-res {
+        margin-left: 0;
+    }
+}
+[dir="rtl"] .fg-if-item {
+    border-left: 0;
+    border-right: 3px solid #c3cad4;
+    border-radius: .35rem 0 0 .35rem;
+}
+[dir="rtl"] .fg-if-msg,
+[dir="rtl"] .fg-if-hint,
+[dir="rtl"] .fg-if-res {
+    margin: .2rem 1.45rem 0 0;
 }

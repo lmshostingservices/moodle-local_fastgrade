@@ -32,4 +32,11 @@ $definitions = [
         'simpledata' => false,
         'ttl' => 300,
     ],
+    // A positive licence check for student-facing features, shared by everyone for an hour.
+    'entitlement' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'ttl' => 3600,
+    ],
 ];

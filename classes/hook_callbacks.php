@@ -122,6 +122,15 @@ class hook_callbacks {
             ) {
                 return;
             }
+            // Instant Feedback: "Check my answer" where students write (teachers previewing a quiz too).
+            try {
+                $boot = \local_fastgrade\local\instant\page::inject($PAGE->cm, (string)$PAGE->pagetype);
+                if ($boot !== '') {
+                    $hook->add_html($boot);
+                }
+            } catch (\Throwable $e) {
+                debugging('Fast Grade Instant Feedback skipped: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            }
             if (self::can_mark()) {
                 if (get_config('local_fastgrade', 'showfab') === '0') {
                     return;

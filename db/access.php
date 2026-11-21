@@ -85,4 +85,15 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    // Students: check practice answers with Instant Feedback where a teacher has set it up.
+    'local/fastgrade:useinstantfeedback' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => [
+            'student' => CAP_ALLOW,
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];

@@ -31,8 +31,8 @@ import * as Engine from 'local_fastgrade/autograde/engine';
 import * as Synonyms from 'local_fastgrade/autograde/synonyms';
 import * as Maths from 'local_fastgrade/maths/engine';
 
-const KINDS = ['keypoints', 'ideas', 'anyof', 'term', 'parts', 'maths', 'photo', 'pattern', 'mustnot', 'length', 'structure',
-    'threshold'];
+const KINDS = ['keypoints', 'ideas', 'anyof', 'term', 'parts', 'sequence', 'value', 'quality', 'maths', 'photo', 'pattern',
+    'mustnot', 'length', 'structure', 'threshold'];
 const PRESETS = ['citation', 'legislation', 'year', 'money', 'percent', 'number', 'url'];
 const STRUCT = ['references', 'headings', 'list'];
 
@@ -66,6 +66,10 @@ const blank = (kind, crit) => {
     } else if (kind === 'maths') {
         config.answer = '';
         config.working = 1;
+    } else if (kind === 'value') {
+        config.unit = '';
+        config.vmin = '';
+        config.vmax = '';
     }
     return {kind, config};
 };
@@ -247,6 +251,22 @@ export const open = (app, criteria, onsaved, start, ctx = {}) => {
                     rule.kind === 'mustnot' ? text(rule, 'comment', t('lf_comment'), t('lf_comment_placeholder')) : null];
             case 'parts':
                 return [termsField(rule, t('lf_parts'), t('lf_parts_help'), 4)];
+            case 'sequence':
+                return [text(rule, 'label', t('lf_label')), termsField(rule, t('lf_steps'), t('lf_steps_help'), 4)];
+            case 'value': {
+                const dec = (key, label) => h('label.fg-field.is-narrow', null, h('span', null, label),
+                    h('input.fg-input.is-num', {type: 'number', step: 'any', value: c[key] === undefined || c[key] === null ?
+                        '' : c[key], oninput: e => {
+                        c[key] = e.target.value === '' ? '' : parseFloat(e.target.value);
+                    }}));
+                return [text(rule, 'label', t('lf_label')),
+                    termsField(rule, t('lf_valueabout'), t('lf_valueabout_help'), 2),
+                    h('div.fg-field-row', null, dec('vmin', t('lf_vmin')), dec('vmax', t('lf_vmax')),
+                        text(rule, 'unit', t('lf_unit'), 'V | volts')),
+                    text(rule, 'comment', t('lf_comment'), t('lf_valuecomment_placeholder'))];
+            }
+            case 'quality':
+                return [h('p.fg-small.fg-muted', null, t('lf_quality_help'))];
             case 'ideas':
                 return [termsField(rule, t('lf_ideas'), t('lf_ideas_help'), 4),
                     h('div.fg-field-row', null, num(rule, 'min', t('lf_ideas_min')))];

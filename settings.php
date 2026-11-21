@@ -202,6 +202,62 @@ if ($hassiteconfig) {
             )
         );
 
+        // Instant Feedback for students. Off by default; free rule-based checks unless a teacher chooses AI.
+        $settings->add(new admin_setting_heading(
+            "$c/instant",
+            get_string('settings_instant', $c),
+            get_string('settings_instant_desc', $c)
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/instant_enable",
+            get_string('instant_enable', $c),
+            get_string('instant_enable_desc', $c),
+            0
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/instant_teachers",
+            get_string('instant_teachers', $c),
+            get_string('instant_teachers_desc', $c),
+            1
+        ));
+        $settings->add(new admin_setting_configtext(
+            "$c/instant_maxattempts",
+            get_string('instant_maxattempts', $c),
+            get_string('instant_maxattempts_desc', $c),
+            10,
+            PARAM_INT,
+            4
+        ));
+        $settings->add(new admin_setting_configselect(
+            "$c/instant_defaultmode",
+            get_string('instant_defaultmode', $c),
+            get_string('instant_defaultmode_desc', $c),
+            'guidance',
+            [
+                'guidance' => get_string('if_mode_guidance', $c),
+                'score' => get_string('if_mode_score', $c),
+                'hints' => get_string('if_mode_hints', $c),
+            ]
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/instant_allowretry",
+            get_string('instant_allowretry', $c),
+            get_string('instant_allowretry_desc', $c),
+            1
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/instant_history",
+            get_string('instant_history', $c),
+            get_string('instant_history_desc', $c),
+            1
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/instant_aftergraded",
+            get_string('instant_aftergraded', $c),
+            get_string('instant_aftergraded_desc', $c),
+            0
+        ));
+
         // Optional AI image analysis through LMS Labs AI. Off by default; the rest of Fast Grade uses no AI.
         $aidesc = get_string('settings_ai_desc', $c, \local_fastgrade\local\aiimage::CREDITS);
         if (optional_param('section', '', PARAM_ALPHANUMEXT) === 'local_fastgrade') {
@@ -236,6 +292,39 @@ if ($hassiteconfig) {
                 ]
             )
         );
+
+        // Optional AI marking of typed answers through LMS Labs AI, alongside the free rules.
+        $settings->add(new admin_setting_heading(
+            "$c/aitextheading",
+            get_string('settings_aitext', $c),
+            get_string('settings_aitext_desc', $c, \local_fastgrade\local\aitext::CREDITS)
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/aitext",
+            get_string('aitext', $c),
+            get_string('aitext_desc', $c, \local_fastgrade\local\aitext::CREDITS),
+            0
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/aitext_students",
+            get_string('aitext_students', $c),
+            get_string('aitext_students_desc', $c, \local_fastgrade\local\aitext::CREDITS),
+            0
+        ));
+        $settings->add(new admin_setting_configcheckbox(
+            "$c/aitext_consent",
+            get_string('aitext_consent', $c),
+            get_string('aitext_consent_desc', $c),
+            0
+        ));
+        $settings->add(new admin_setting_configtext(
+            "$c/aitext_dailycap",
+            get_string('aitext_dailycap', $c),
+            get_string('aitext_dailycap_desc', $c),
+            200,
+            PARAM_INT,
+            6
+        ));
 
         $settings->add(
             new admin_setting_heading(

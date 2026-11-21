@@ -51,6 +51,8 @@ class boot {
             'precedents' => (bool)get_config('local_fastgrade', 'precedents'),
             'aiimages' => \local_fastgrade\local\aiimage::enabled(),
             'aicredits' => \local_fastgrade\local\aiimage::CREDITS,
+            'aitext' => \local_fastgrade\local\aitext::enabled_for('marker'),
+            'aitextcredits' => \local_fastgrade\local\aitext::CREDITS,
             'checksources' => self::check_sources(),
             'libs' => [
                 'pdfjs' => $base . '/pdfjs/pdf.min.js',

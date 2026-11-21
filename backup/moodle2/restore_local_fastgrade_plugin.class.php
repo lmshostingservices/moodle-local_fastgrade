@@ -34,6 +34,7 @@ class restore_local_fastgrade_plugin extends restore_local_plugin {
         $paths = [
             new restore_path_element('fastgrade_lookfor', $this->get_pathfor('/lookfors/lookfor')),
             new restore_path_element('fastgrade_qcrit', $this->get_pathfor('/qcrits/qcrit')),
+            new restore_path_element('fastgrade_ifset', $this->get_pathfor('/ifsets/ifset')),
         ];
         if ($this->get_setting_value('userinfo')) {
             $paths[] = new restore_path_element('fastgrade_mark', $this->get_pathfor('/marks/mark'));
@@ -70,6 +71,25 @@ class restore_local_fastgrade_plugin extends restore_local_plugin {
         $data->cmid = $this->task->get_moduleid();
         $data->usermodified = $USER->id;
         $DB->insert_record('local_fastgrade_qcrit', $data);
+    }
+
+    /**
+     * An Instant Feedback set-up. A quiz question's set-up follows its question bank entry.
+     *
+     * @param array $data
+     */
+    public function process_fastgrade_ifset($data) {
+        global $DB, $USER;
+        $data = (object)$data;
+        unset($data->id);
+        $data->cmid = $this->task->get_moduleid();
+        if ($data->qbeid) {
+            $data->qbeid = $this->get_mappingid('question_bank_entry', $data->qbeid, $data->qbeid);
+        }
+        $data->usermodified = $USER->id;
+        if (!$DB->record_exists('local_fastgrade_ifset', ['cmid' => $data->cmid, 'qbeid' => $data->qbeid])) {
+            $DB->insert_record('local_fastgrade_ifset', $data);
+        }
     }
 
     /**
